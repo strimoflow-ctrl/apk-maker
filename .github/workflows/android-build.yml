@@ -37,8 +37,8 @@ jobs:
         sed -i -e 's/\r$//' android/gradlew
         chmod +x android/gradlew
 
-    - name: Sync Capacitor
-      run: npx cap sync android
+    - name: Copy Web Assets
+      run: npx cap copy android
 
     - name: Build APK
       working-directory: ./android
