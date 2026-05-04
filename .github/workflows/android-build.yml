@@ -32,15 +32,17 @@ jobs:
     - name: Build Web App
       run: npm run build
 
+    - name: Fix gradlew permissions
+      run: |
+        sed -i -e 's/\r$//' android/gradlew
+        chmod +x android/gradlew
+
     - name: Sync Capacitor
       run: npx cap sync android
 
     - name: Build APK
       working-directory: ./android
-      run: |
-        sed -i -e 's/\r$//' gradlew
-        chmod +x ./gradlew
-        ./gradlew assembleDebug
+      run: ./gradlew assembleDebug
 
     - name: Upload APK Artifact
       uses: actions/upload-artifact@v4
