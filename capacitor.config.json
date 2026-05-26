@@ -1,6 +1,6 @@
 {
   "appId": "com.naino.academy",
-  "appName": "naino-app",
+  "appName": "Naino Academy",
   "webDir": "dist",
   "plugins": {
     "PushNotifications": {
