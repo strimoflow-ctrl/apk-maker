@@ -1,0 +1,538 @@
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import { set, get, keys, del } from 'idb-keyval';
+import { useAlert } from './AlertContext';
+import { LocalNotifications } from '@capacitor/local-notifications';
+
+const isCapacitor = typeof window !== 'undefined' && !!window.Capacitor;
+
+// Helper to calculate a stable numeric ID from string key (required by LocalNotifications)
+const getNotificationId = (key) => {
+  let hash = 0;
+  for (let i = 0; i < key.length; i++) {
+    hash = (hash << 5) - hash + key.charCodeAt(i);
+    hash |= 0; // Convert to 32bit integer
+  }
+  return Math.abs(hash) % 1000000;
+};
+
+const notifyStart = async (id, title) => {
+  if (!isCapacitor) return;
+  try {
+    await LocalNotifications.requestPermissions();
+    await LocalNotifications.schedule({
+      notifications: [{
+        id,
+        title: `Downloading: ${title}`,
+        body: `Starting download...`,
+        ongoing: true,
+        autoCancel: false,
+        smallIcon: 'ic_stat_download',
+        iconColor: '#FFD700'
+      }]
+    });
+  } catch (e) {
+    console.error("Local Notification Error:", e);
+  }
+};
+
+const notifyProgress = async (id, title, progress) => {
+  if (!isCapacitor) return;
+  try {
+    await LocalNotifications.schedule({
+      notifications: [{
+        id,
+        title: `Downloading: ${title}`,
+        body: `Progress: ${Math.round(progress)}%`,
+        ongoing: true,
+        autoCancel: false,
+        smallIcon: 'ic_stat_download',
+        iconColor: '#FFD700'
+      }]
+    });
+  } catch (e) {
+    console.error("Local Notification Error:", e);
+  }
+};
+
+const notifyComplete = async (id, title) => {
+  if (!isCapacitor) return;
+  try {
+    await LocalNotifications.cancel({ notifications: [{ id }] });
+    await LocalNotifications.schedule({
+      notifications: [{
+        id: id + 1, // New ID so it stays in history
+        title: `Download Complete! 🎉`,
+        body: `${title} is ready offline.`,
+        ongoing: false,
+        autoCancel: true,
+        smallIcon: 'ic_stat_download',
+        iconColor: '#FFD700'
+      }]
+    });
+  } catch (e) {
+    console.error("Local Notification Error:", e);
+  }
+};
+
+const notifyCancelOrError = async (id) => {
+  if (!isCapacitor) return;
+  try {
+    await LocalNotifications.cancel({ notifications: [{ id }] });
+  } catch (e) {
+    console.error("Local Notification Error:", e);
+  }
+};
+
+const DownloadContext = createContext();
+
+export const useDownload = () => useContext(DownloadContext);
+
+export const DownloadProvider = ({ children }) => {
+  const [activeDownloads, setActiveDownloads] = useState({});
+  const [completedDownloads, setCompletedDownloads] = useState([]);
+  const abortControllers = useRef({});
+  const chunksRef = useRef({}); // Store active chunks in memory to save on pause
+  const { showAlert } = useAlert();
+
+  // Load existing downloads on mount
+  useEffect(() => {
+    const loadDownloads = async () => {
+      try {
+        const allKeys = await keys();
+        const nainoKeys = allKeys.filter(k => k.startsWith('naino_offline_') && !k.endsWith('_meta') && !k.startsWith('naino_offline_partial_'));
+        
+        const downloads = [];
+        for (const key of nainoKeys) {
+          const meta = await get(`${key}_meta`);
+          if (meta) {
+            downloads.push(meta);
+          }
+        }
+        // Sort by timestamp descending
+        downloads.sort((a, b) => b.timestamp - a.timestamp);
+        setCompletedDownloads(downloads);
+
+        // Load paused downloads
+        const partialKeys = allKeys.filter(k => k.startsWith('naino_offline_partial_'));
+        const pausedState = {};
+        for (const pKey of partialKeys) {
+          const meta = await get(`${pKey}_meta`);
+          if (meta) {
+            pausedState[meta.key] = {
+              ...meta,
+              status: 'paused',
+              progress: meta.total ? (meta.loaded / meta.total) * 100 : 0
+            };
+          }
+        }
+        setActiveDownloads(prev => ({ ...prev, ...pausedState }));
+
+      } catch (e) {
+        console.error("Failed to load downloads", e);
+      }
+    };
+    loadDownloads();
+  }, []);
+
+  const downloadFile = async (type, courseId, itemId, url, title, courseTitle = '', chapterName = '', isResume = false) => {
+    const downloadKey = `naino_offline_${type}_${courseId}_${itemId}`;
+    const partialKey = `naino_offline_partial_${downloadKey}`;
+    const currentPath = window.location.hash;
+    const courseType = currentPath.includes('/coaching') ? 'coaching' : 
+                       currentPath.includes('/crash') ? 'crash' : 
+                       currentPath.includes('/course') ? 'course' : 
+                       currentPath.includes('/pdf-zone') ? 'pdf-zone' : 
+                       currentPath.includes('/test-zone') ? 'test-zone' : 
+                       currentPath.includes('/book-library') ? 'book-library' : 'other';
+    
+    if (activeDownloads[downloadKey] && activeDownloads[downloadKey].status === 'downloading') return;
+    const exists = await get(downloadKey);
+    if (exists) return;
+
+    if (type === 'pdf' && itemId && courseId && ['coaching', 'crash', 'course'].includes(courseType)) {
+      try {
+        const recentRaw = localStorage.getItem('naino_recent_activity') || '[]';
+        let recent = JSON.parse(recentRaw);
+        
+        recent = recent.filter(item => !(item.courseId === courseId && item.lectureId === itemId));
+        recent.unshift({
+          courseId,
+          lectureId: itemId,
+          courseTitle: courseTitle || title,
+          lectureTitle: itemId,
+          coachingContext: chapterName ? { chapterName } : null,
+          coachingName: courseType === 'coaching' ? courseTitle : null,
+          progressPercent: 0,
+          timestamp: new Date().getTime(),
+          type: courseType
+        });
+        recent = recent.slice(0, 20);
+        localStorage.setItem('naino_recent_activity', JSON.stringify(recent));
+      } catch (e) {
+        console.warn("Error saving recent activity on PDF download:", e);
+      }
+    }
+
+    const controller = new AbortController();
+    abortControllers.current[downloadKey] = controller;
+
+    let existingBlob = null;
+    let loaded = 0;
+    let total = 0;
+    let startSegment = 0;
+
+    if (isResume) {
+      existingBlob = await get(partialKey);
+      const meta = await get(`${partialKey}_meta`);
+      if (existingBlob && meta) {
+        loaded = meta.loaded;
+        total = meta.total;
+        startSegment = meta.currentSegment || 0;
+      }
+    } else {
+      // Clear any partials if starting fresh
+      await del(partialKey);
+      await del(`${partialKey}_meta`);
+    }
+
+    setActiveDownloads(prev => ({
+      ...prev,
+      [downloadKey]: { progress: total ? (loaded / total) * 100 : 0, loaded, total, title, type, courseType, courseTitle, chapterName, courseId, itemId, url, status: 'downloading' }
+    }));
+
+    const notifId = getNotificationId(downloadKey);
+    await notifyStart(notifId, title);
+    let lastPercentNotified = 0;
+
+    try {
+      if (url.includes('.m3u8')) {
+        // HLS Download Logic
+        const res = await fetch(url, { signal: controller.signal });
+        const text = await res.text();
+        const lines = text.split('\n');
+        
+        // Basic parser: filter empty lines and comments
+        const segmentUrls = lines.filter(line => line.trim() !== '' && !line.startsWith('#'));
+        
+        // Resolve base URL for relative paths
+        const baseUrl = url.substring(0, url.lastIndexOf('/') + 1);
+        const resolvedUrls = segmentUrls.map(segUrl => {
+          if (segUrl.trim().startsWith('http')) return segUrl.trim();
+          // Handle absolute paths on the same host (simple fallback)
+          if (segUrl.trim().startsWith('/')) {
+             const urlObj = new URL(url);
+             return urlObj.origin + segUrl.trim();
+          }
+          return baseUrl + segUrl.trim();
+        });
+        
+        total = resolvedUrls.length;
+        const chunks = existingBlob ? [existingBlob] : [];
+        chunksRef.current[downloadKey] = chunks;
+        let totalBytesLoaded = loaded;
+        let lastUpdateTime = 0;
+        
+        for (let i = startSegment; i < resolvedUrls.length; i++) {
+          if (controller.signal.aborted) break;
+          
+          const segUrl = resolvedUrls[i];
+          try {
+            const segRes = await fetch(segUrl, { signal: controller.signal });
+            if (!segRes.ok) throw new Error(`Failed to fetch segment: ${segRes.status}`);
+            const segData = await segRes.arrayBuffer();
+            chunks.push(new Uint8Array(segData));
+            totalBytesLoaded += segData.byteLength;
+            
+            const now = Date.now();
+            // Throttle state updates to at most once per second to prevent UI lag
+            if (now - lastUpdateTime > 1000 || i === resolvedUrls.length - 1) {
+              const currentPercent = ((i + 1) / total) * 100;
+              setActiveDownloads(prev => ({
+                ...prev,
+                [downloadKey]: { 
+                  progress: currentPercent, 
+                  loaded: totalBytesLoaded, 
+                  total: 0, 
+                  currentSegment: i + 1,
+                  title,
+                  type,
+                  courseTitle,
+                  chapterName,
+                  courseId,
+                  itemId,
+                  url,
+                  status: 'downloading'
+                }
+              }));
+              lastUpdateTime = now;
+
+              if (Math.floor(currentPercent) - lastPercentNotified >= 5) {
+                lastPercentNotified = Math.floor(currentPercent);
+                await notifyProgress(notifId, title, currentPercent);
+              }
+            }
+          } catch (segErr) {
+            console.error(`Error downloading segment ${i}:`, segErr);
+            // Continue or fail? Let's try to continue for now, or maybe fail if it's critical.
+            // For now, let's just push an empty chunk to keep indices or fail.
+            // Failing is probably better to avoid corrupted video.
+            throw segErr;
+          }
+        }
+        
+        const finalBlob = new Blob(chunks, { type: 'video/mp2t' });
+        
+        await set(downloadKey, finalBlob);
+        
+        const meta = {
+          key: downloadKey, courseId, itemId, title, type, courseTitle, chapterName, size: finalBlob.size, timestamp: new Date().getTime(), isHLS: true
+        };
+        await set(`${downloadKey}_meta`, meta);
+  
+        // Cleanup partials
+        await del(partialKey);
+        await del(`${partialKey}_meta`);
+        delete chunksRef.current[downloadKey];
+  
+        setCompletedDownloads(prev => [meta, ...prev]);
+        await notifyComplete(notifId, title);
+        
+      } else {
+        // Standard Download Logic (Existing)
+        let proxyUrl = url;
+        const isCapacitor = typeof window !== 'undefined' && !!window.Capacitor;
+        if (!isCapacitor) {
+          if (url.includes('filestreambot-1-jx2x.onrender.com')) {
+            proxyUrl = url.replace(/^https?:\/\/filestreambot-1-jx2x\.onrender\.com/, '');
+          }
+        } else {
+          if (url.startsWith('http://filestreambot-1-jx2x.onrender.com')) {
+            proxyUrl = url.replace('http://', 'https://');
+          }
+        }
+        
+        const headers = isResume && loaded > 0 ? { 'Range': `bytes=${loaded}-` } : {};
+        const response = await fetch(proxyUrl, { signal: controller.signal, headers });
+        
+        if (!response.ok && response.status !== 206) throw new Error(`HTTP error! status: ${response.status}`);
+        
+        const contentLength = response.headers.get('content-length');
+        if (!total) {
+          total = parseInt(contentLength, 10) || 0;
+        }
+        
+        const reader = response.body.getReader();
+        const chunks = existingBlob ? [existingBlob] : [];
+        chunksRef.current[downloadKey] = chunks;
+  
+        while (true) {
+          const { done, value } = await reader.read();
+          
+          if (done) break;
+          
+          chunks.push(value);
+          loaded += value.length;
+          
+          const currentPercent = total ? (loaded / total) * 100 : 0;
+          
+          setActiveDownloads(prev => ({
+            ...prev,
+            [downloadKey]: { 
+              progress: currentPercent, 
+              loaded, 
+              total, 
+              title,
+              type,
+              courseTitle,
+              chapterName,
+              courseId,
+              itemId,
+              url,
+              status: 'downloading'
+            }
+          }));
+
+          if (Math.floor(currentPercent) - lastPercentNotified >= 5) {
+            lastPercentNotified = Math.floor(currentPercent);
+            await notifyProgress(notifId, title, currentPercent);
+          }
+        }
+  
+        const contentType = response.headers.get('content-type') || (type === 'pdf' ? 'application/pdf' : 'video/mp4');
+        const finalBlob = new Blob(chunks, { type: contentType });
+        
+        await set(downloadKey, finalBlob);
+        
+        let isZip = false;
+        if (type === 'book' || type === 'pdf') {
+          try {
+            const magicBytes = await finalBlob.slice(0, 4).text();
+            if (magicBytes.startsWith('PK')) {
+              isZip = true;
+            }
+          } catch (e) {
+            console.error("Failed to detect ZIP magic bytes:", e);
+          }
+        }
+        
+        const meta = {
+          key: downloadKey, courseId, itemId, title, type, courseType, courseTitle, chapterName, size: finalBlob.size, timestamp: new Date().getTime(), isZip
+        };
+        await set(`${downloadKey}_meta`, meta);
+  
+        // Cleanup partials
+        await del(partialKey);
+        await del(`${partialKey}_meta`);
+        delete chunksRef.current[downloadKey];
+  
+        setCompletedDownloads(prev => [meta, ...prev]);
+        await notifyComplete(notifId, title);
+      }
+
+    } catch (error) {
+      await notifyCancelOrError(notifId);
+      if (error.name === 'AbortError') {
+        console.log(`Download aborted for ${title}`);
+      } else {
+        console.error(`Failed to download ${title}:`, error);
+        showAlert(`Download failed for ${title}`, 'error');
+        setActiveDownloads(prev => {
+          const next = { ...prev };
+          delete next[downloadKey];
+          return next;
+        });
+      }
+    } finally {
+      delete abortControllers.current[downloadKey];
+      setActiveDownloads(prev => {
+        if (!prev[downloadKey] || prev[downloadKey].status === 'paused') return prev;
+        const next = { ...prev };
+        delete next[downloadKey];
+        return next;
+      });
+    }
+  };
+
+  const pauseDownload = async (type, courseId, itemId) => {
+    const downloadKey = `naino_offline_${type}_${courseId}_${itemId}`;
+    const partialKey = `naino_offline_partial_${downloadKey}`;
+    const notifId = getNotificationId(downloadKey);
+    await notifyCancelOrError(notifId);
+    
+    // 1. Mark as paused in state FIRST
+    // This prevents the finally block in downloadFile from deleting the entry
+    setActiveDownloads(prev => {
+      if (!prev[downloadKey]) return prev;
+      return {
+        ...prev,
+        [downloadKey]: { ...prev[downloadKey], status: 'paused' }
+      };
+    });
+
+    // 2. Abort the active fetch
+    if (abortControllers.current[downloadKey]) {
+      abortControllers.current[downloadKey].abort();
+      delete abortControllers.current[downloadKey];
+    }
+
+    // 3. Save current progress to IDB
+    const state = activeDownloads[downloadKey];
+    const chunks = chunksRef.current[downloadKey];
+    
+    if (state && Array.isArray(chunks) && chunks.length > 0) {
+      try {
+        const partialBlob = new Blob(chunks, { type: state.type === 'pdf' ? 'application/pdf' : 'video/mp4' });
+        await set(partialKey, partialBlob);
+        
+        const meta = {
+          key: downloadKey, courseId, itemId, title: state.title, type: state.type, courseTitle: state.courseTitle, chapterName: state.chapterName, loaded: state.loaded, total: state.total, url: state.url,
+          currentSegment: state.currentSegment
+        };
+        await set(`${partialKey}_meta`, meta);
+        delete chunksRef.current[downloadKey];
+      } catch (e) {
+        console.error("Failed to save partial download", e);
+      }
+    }
+  };
+
+  const resumeDownload = (type, courseId, itemId) => {
+    const downloadKey = `naino_offline_${type}_${courseId}_${itemId}`;
+    const state = activeDownloads[downloadKey];
+    if (state) {
+      downloadFile(state.type, state.courseId, state.itemId, state.url, state.title, state.courseTitle, state.chapterName, true);
+    }
+  };
+
+  const cancelDownload = async (type, courseId, itemId) => {
+    const downloadKey = `naino_offline_${type}_${courseId}_${itemId}`;
+    const partialKey = `naino_offline_partial_${downloadKey}`;
+    const notifId = getNotificationId(downloadKey);
+    await notifyCancelOrError(notifId);
+    
+    if (abortControllers.current[downloadKey]) {
+      abortControllers.current[downloadKey].abort();
+      delete abortControllers.current[downloadKey];
+    }
+
+    delete chunksRef.current[downloadKey];
+    await del(partialKey);
+    await del(`${partialKey}_meta`);
+
+    setActiveDownloads(prev => {
+      const next = { ...prev };
+      delete next[downloadKey];
+      return next;
+    });
+  };
+
+  const getOfflineFileUrl = async (type, courseId, itemId) => {
+    try {
+      const downloadKey = `naino_offline_${type}_${courseId}_${itemId}`;
+      const blob = await get(downloadKey);
+      if (blob) {
+        return URL.createObjectURL(blob);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    return null;
+  };
+
+  const deleteDownload = async (key) => {
+    try {
+      await del(key);
+      await del(`${key}_meta`);
+      setCompletedDownloads(prev => prev.filter(d => d.key !== key));
+    } catch (e) {
+      console.error("Failed to delete download", e);
+    }
+  };
+
+  const isDownloaded = (type, courseId, itemId) => {
+    const key = `naino_offline_${type}_${courseId}_${itemId}`;
+    return completedDownloads.some(d => d.key === key);
+  };
+
+  const isDownloading = (type, courseId, itemId) => {
+    const key = `naino_offline_${type}_${courseId}_${itemId}`;
+    return !!activeDownloads[key] && activeDownloads[key].status === 'downloading';
+  };
+
+  return (
+    <DownloadContext.Provider value={{
+      activeDownloads,
+      completedDownloads,
+      downloadFile,
+      pauseDownload,
+      resumeDownload,
+      cancelDownload,
+      getOfflineFileUrl,
+      deleteDownload,
+      isDownloaded,
+      isDownloading
+    }}>
+      {children}
+    </DownloadContext.Provider>
+  );
+};
