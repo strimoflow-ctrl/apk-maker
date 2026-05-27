@@ -1,7 +1,7 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Target, ChevronRight, PenTool } from 'lucide-react';
-import { resolveApiUrl } from '../utils/api';
+import { Target, ChevronRight, PenTool } from 'lucide-react';
+import { fetchWithCache } from '../utils/api';
 
 const TestZoneScreen = () => {
   const navigate = useNavigate();
@@ -11,9 +11,8 @@ const TestZoneScreen = () => {
   useEffect(() => {
     const fetchTestData = async () => {
       try {
-        const response = await fetch(resolveApiUrl('/api/directory/testzone.json'));
-        const data = await response.json();
-        setInstitutions(data);
+        const data = await fetchWithCache('/api/directory/testzone.json', 'cache_testzone_directory');
+        setInstitutions(data || []);
       } catch (error) {
         console.error("Failed to fetch Test Zone data:", error);
       } finally {
@@ -37,12 +36,6 @@ const TestZoneScreen = () => {
       <div className="max-w-7xl mx-auto">
         <header className="mb-10 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <button
-              onClick={() => navigate('/', { replace: true })}
-              className="flex items-center gap-2 text-sm font-semibold hover:text-[#FFD700] transition-colors uppercase"
-            >
-              <ArrowLeft size={20} />
-            </button>
             <div>
               <h1 className="text-3xl font-oswald font-bold text-[#FFD700] tracking-wide uppercase flex items-center gap-3">
                 <Target size={28} /> Test Zone

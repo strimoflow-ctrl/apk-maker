@@ -139,7 +139,14 @@ const DownloadScreen = () => {
 
     const url = await getOfflineFileUrl(dl.type, dl.courseId, dl.itemId);
     if (action === 'watch') {
-      navigate(`/course/${dl.courseId}`, { state: { autoPlayLecture: dl.itemId } });
+      const cType = dl.courseType || (dl.courseId?.startsWith('cr_') ? 'crash' : dl.courseId?.startsWith('c_') ? 'coaching' : 'course');
+      const state = { 
+        autoPlayLecture: dl.itemId,
+        coachingContext: dl.chapterName ? { chapterName: dl.chapterName } : null
+      };
+      if (cType === 'coaching') navigate(`/coaching/${dl.courseId}`, { state });
+      else if (cType === 'crash') navigate(`/crash/${dl.courseId}`, { state });
+      else navigate(`/course/${dl.courseId}`, { state });
     } else if (action === 'view') {
       navigate('/pdf', { state: { file: url, title: dl.title } });
     } else if (action === 'extract') {

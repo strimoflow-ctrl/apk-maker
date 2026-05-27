@@ -31,8 +31,7 @@ const HtmlViewerScreen = () => {
       <iframe 
         src={encodeURI(fileUrl).replace(/\(/g, '%28').replace(/\)/g, '%29')} 
         title={title}
-        className="w-full h-full border-0 absolute inset-0 bg-white"
-        sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+        className="w-full h-full border-0 absolute inset-0 bg-white z-10"
       />
     </div>
   );

@@ -2,6 +2,30 @@ import { fetchBackendAPI } from './api';
 
 const STORAGE_KEY = 'naino_progress_data';
 
+const saveLocalData = (data) => {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  } catch (e) {
+    console.error("Error saving progress data", e);
+  }
+};
+
+const checkAndResetStreak = (data) => {
+  if (data.lastStudyDate) {
+    const todayStr = getTodayDateString();
+    
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    yesterday.setMinutes(yesterday.getMinutes() - yesterday.getTimezoneOffset());
+    const yesterdayStr = yesterday.toISOString().split('T')[0];
+    
+    if (data.lastStudyDate !== todayStr && data.lastStudyDate !== yesterdayStr) {
+      data.streak = 0;
+      saveLocalData(data);
+    }
+  }
+};
+
 const getLocalData = () => {
   try {
     const data = localStorage.getItem(STORAGE_KEY);
@@ -12,6 +36,7 @@ const getLocalData = () => {
         parsed.registrationDate = getTodayDateString();
         saveLocalData(parsed);
       }
+      checkAndResetStreak(parsed);
       return parsed;
     }
   } catch (e) {
@@ -28,14 +53,6 @@ const getLocalData = () => {
   };
   saveLocalData(initialData);
   return initialData;
-};
-
-const saveLocalData = (data) => {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-  } catch (e) {
-    console.error("Error saving progress data", e);
-  }
 };
 
 const getTodayDateString = () => {

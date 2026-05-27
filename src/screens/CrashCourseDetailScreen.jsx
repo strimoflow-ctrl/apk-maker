@@ -96,7 +96,12 @@ const CrashCourseDetailScreen = () => {
           }
 
           setCourseData(data);
-          setActiveBatchIndex(0);
+          if (location.state?.activeBatchName && data && data.batches) {
+            const idx = data.batches.findIndex(b => b.batchName === location.state.activeBatchName);
+            setActiveBatchIndex(idx !== -1 ? idx : 0);
+          } else {
+            setActiveBatchIndex(0);
+          }
           setActiveSubjectIndex(0);
         } catch (err) {
           console.error(err);
@@ -136,6 +141,15 @@ const CrashCourseDetailScreen = () => {
     }
   }, [courseData, activeBatchIndex]);
 
+  // Handle URL change to reset chapter selection on back button pop
+  useEffect(() => {
+    const query = new URLSearchParams(location.search);
+    if (query.get('chapter') !== 'active') {
+      setSelectedChapter(null);
+      setActiveLecture(null);
+    }
+  }, [location.search]);
+
   // Auto-play from state (Navigation fix included)
   useEffect(() => {
     if (courseData && location.state?.autoPlayLecture && !selectedChapter) {
@@ -169,10 +183,11 @@ const CrashCourseDetailScreen = () => {
                   setOfflineVideoUrl(offlineUrl);
                 });
                 
-                const newState = { ...location.state };
-                delete newState.autoPlayLecture;
-                delete newState.coachingContext;
-                navigate(location.pathname, { replace: true, state: newState });
+                const cleanState = { ...location.state };
+                delete cleanState.autoPlayLecture;
+                delete cleanState.coachingContext;
+                navigate(location.pathname, { replace: true, state: cleanState });
+                navigate(location.pathname + "?chapter=active", { replace: false, state: cleanState });
                 return;
               }
             }
@@ -202,11 +217,12 @@ const CrashCourseDetailScreen = () => {
               getOfflineFileUrl('video', courseId, lectureId).then(offlineUrl => {
                 setOfflineVideoUrl(offlineUrl);
               });
-              
-              const newState = { ...location.state };
-              delete newState.autoPlayLecture;
-              navigate(location.pathname, { replace: true, state: newState });
-              return true;
+               
+               const cleanState = { ...location.state };
+               delete cleanState.autoPlayLecture;
+               navigate(location.pathname, { replace: true, state: cleanState });
+               navigate(location.pathname + "?chapter=active", { replace: false, state: cleanState });
+               return true;
             }
           }
         }
@@ -223,6 +239,7 @@ const CrashCourseDetailScreen = () => {
 
   // Removed aggressive auto-resume on mount so chapter list shows first.
 
+  const activeBatch = courseData?.batches?.[activeBatchIndex];
   const activeSubject = activeBatchData?.subjects?.[activeSubjectIndex];
 
   if (!selectedChapter) {
@@ -242,13 +259,22 @@ const CrashCourseDetailScreen = () => {
               <div className="shrink-0">
                 <SaveButton 
                   shake={true}
-                  item={{ 
-                    id: courseId, 
-                    type: 'crash', 
-                    courseId: courseId, 
+                  key={activeBatch ? `${courseId}_batch_${activeBatch.batchName}` : courseId}
+                  item={activeBatch ? {
+                    id: `${courseId}_batch_${activeBatch.batchName}`,
+                    type: 'crash',
+                    courseId: courseId,
+                    title: activeBatch.batchName,
                     courseTitle: courseData.coachingName || crashCourse?.title,
-                    image: crashCourse?.image 
-                  }} 
+                    activeBatchName: activeBatch.batchName,
+                    image: crashCourse?.image
+                  } : {
+                    id: courseId,
+                    type: 'crash',
+                    courseId: courseId,
+                    courseTitle: courseData.coachingName || crashCourse?.title,
+                    image: crashCourse?.image
+                  }}
                 />
               </div>
             )}
@@ -308,6 +334,7 @@ const CrashCourseDetailScreen = () => {
                       onClick={() => {
                         window.scrollTo(0, 0);
                         setSelectedChapter(chapter);
+                        navigate(location.pathname + "?chapter=active", { state: location.state });
                         if (chapter.lectures && chapter.lectures.length > 0) {
                           let nextActiveLec = chapter.lectures[0];
                           let nextActiveIndex = 0;
@@ -383,7 +410,7 @@ const CrashCourseDetailScreen = () => {
   return (
     <div className="h-[100dvh] bg-[#111] text-white flex flex-col overflow-hidden page-transition">
       <header className="bg-black p-4 flex items-center justify-between z-10">
-        <button onClick={() => setSelectedChapter(null)} className="flex items-center gap-2 text-sm font-semibold hover:text-[#FFD700] transition-colors uppercase">
+        <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-sm font-semibold hover:text-[#FFD700] transition-colors uppercase">
           <ArrowLeft size={18} /> BACK
         </button>
         <button onClick={() => navigate('/', { replace: true })} className="flex items-center gap-2 text-sm font-semibold hover:text-[#FFD700] transition-colors uppercase">

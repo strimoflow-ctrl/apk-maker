@@ -105,7 +105,12 @@ const CoachingDetailScreen = () => {
           }
 
           setCoachingData(data);
-          setActiveBatchIndex(0);
+          if (location.state?.activeBatchName && data && data.batches) {
+            const idx = data.batches.findIndex(b => b.batchName === location.state.activeBatchName);
+            setActiveBatchIndex(idx !== -1 ? idx : 0);
+          } else {
+            setActiveBatchIndex(0);
+          }
           setActiveSubjectIndex(0);
         } catch (err) {
           console.error(err);
@@ -146,6 +151,15 @@ const CoachingDetailScreen = () => {
     }
   }, [coachingData, activeBatchIndex]);
 
+  // Handle URL change to reset chapter selection on back button pop
+  useEffect(() => {
+    const query = new URLSearchParams(location.search);
+    if (query.get('chapter') !== 'active') {
+      setSelectedChapter(null);
+      setActiveLecture(null);
+    }
+  }, [location.search]);
+
   // Auto-play from state (e.g. from Recent Activity)
   useEffect(() => {
     if (coachingData && location.state?.autoPlayLecture && !selectedChapter) {
@@ -179,10 +193,11 @@ const CoachingDetailScreen = () => {
                   setOfflineVideoUrl(offlineUrl);
                 });
                 
-                const newState = { ...location.state };
-                delete newState.autoPlayLecture;
-                delete newState.coachingContext;
-                navigate(location.pathname, { replace: true, state: newState });
+                const cleanState = { ...location.state };
+                delete cleanState.autoPlayLecture;
+                delete cleanState.coachingContext;
+                navigate(location.pathname, { replace: true, state: cleanState });
+                navigate(location.pathname + "?chapter=active", { replace: false, state: cleanState });
                 return;
               }
             }
@@ -213,9 +228,10 @@ const CoachingDetailScreen = () => {
               });
               
               // Clear state
-              const newState = { ...location.state };
-              delete newState.autoPlayLecture;
-              navigate(location.pathname, { replace: true, state: newState });
+              const cleanState = { ...location.state };
+              delete cleanState.autoPlayLecture;
+              navigate(location.pathname, { replace: true, state: cleanState });
+              navigate(location.pathname + "?chapter=active", { replace: false, state: cleanState });
               return;
             }
           }
@@ -247,13 +263,22 @@ const CoachingDetailScreen = () => {
               <div className="shrink-0">
                 <SaveButton 
                   shake={true}
-                  item={{ 
-                    id: coachingId, 
-                    type: 'coaching', 
-                    courseId: coachingId, 
+                  key={activeBatch ? `${coachingId}_batch_${activeBatch.batchName}` : coachingId}
+                  item={activeBatch ? {
+                    id: `${coachingId}_batch_${activeBatch.batchName}`,
+                    type: 'coaching',
+                    courseId: coachingId,
+                    title: activeBatch.batchName,
                     coachingName: coachingData.coachingName || coaching?.title,
-                    image: coaching?.image 
-                  }} 
+                    activeBatchName: activeBatch.batchName,
+                    image: coaching?.image
+                  } : {
+                    id: coachingId,
+                    type: 'coaching',
+                    courseId: coachingId,
+                    coachingName: coachingData.coachingName || coaching?.title,
+                    image: coaching?.image
+                  }}
                 />
               </div>
             )}
@@ -317,6 +342,7 @@ const CoachingDetailScreen = () => {
                   onClick={() => {
                     window.scrollTo(0, 0);
                     setSelectedChapter(chapter);
+                    navigate(location.pathname + "?chapter=active", { state: location.state });
                     if (chapter.lectures && chapter.lectures.length > 0) {
                       let nextActiveLec = chapter.lectures[0];
                       let nextActiveIndex = 0;
@@ -405,7 +431,7 @@ const CoachingDetailScreen = () => {
       {/* Top Header */}
       <header className="bg-black p-4 flex items-center justify-between z-10">
         <button
-          onClick={() => setSelectedChapter(null)}
+          onClick={() => navigate(-1)}
           className="flex items-center gap-2 text-sm font-semibold hover:text-[#FFD700] transition-colors uppercase"
         >
           <ArrowLeft size={18} /> BACK

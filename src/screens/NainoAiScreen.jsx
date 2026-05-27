@@ -462,7 +462,7 @@ const NainoAiScreen = () => {
 
           <h3 className="text-white font-bold text-lg text-center mb-1">Delete Chat?</h3>
           <p className="text-gray-400 text-sm text-center mb-6 leading-relaxed">
-            <span className="text-white/70 font-semibold">"{deleteConfirm.title}"</span> delete ho jayega aur wapas nahi aayega.
+            <span className="text-white/70 font-semibold">"{deleteConfirm.title}"</span> will be deleted permanently and cannot be recovered.
           </p>
 
           <div className="flex gap-3">

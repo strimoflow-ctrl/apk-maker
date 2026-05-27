@@ -132,7 +132,7 @@ const AccountScreen = () => {
             window.dispatchEvent(new Event('premiumStatusChanged'));
           } else if (data.status === 'FAILED') {
             setPollingActive(false);
-            showAlert('Bhai, payment fail ho gaya hai. Dobara koshish karein.', 'error');
+            showAlert('Payment failed. Please try again.', 'error');
             setSubStep('selection');
           }
         } catch (err) {
@@ -680,7 +680,7 @@ const AccountScreen = () => {
             </div>
             <h4 className="text-white font-black uppercase tracking-widest mb-3">Request Submitted!</h4>
             <p className="text-sm text-gray-400 leading-relaxed mb-8 font-medium">
-              Aapka payment screenshot successfully upload ho gaya hai. Admin isko review karke jald hi activate kar denge. 🎓
+              Your payment screenshot has been uploaded successfully. The admin will review it and activate your account shortly. 🎓
             </p>
             <button 
               onClick={() => setIsSuccessModalOpen(false)} 

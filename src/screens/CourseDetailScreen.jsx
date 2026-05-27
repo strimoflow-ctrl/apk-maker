@@ -108,9 +108,10 @@ const CourseDetailScreen = () => {
             });
             
             // Clear autoPlayLecture from state to prevent loop on remount
-            const newState = { ...location.state };
-            delete newState.autoPlayLecture;
-            navigate(location.pathname, { replace: true, state: newState });
+            const cleanState = { ...location.state };
+            delete cleanState.autoPlayLecture;
+            navigate(location.pathname, { replace: true, state: cleanState });
+            navigate(location.pathname + "?chapter=active", { replace: false, state: cleanState });
             return;
           }
         }
@@ -118,7 +119,14 @@ const CourseDetailScreen = () => {
     }
   }, [courseData, location.state, courseId, navigate, getOfflineFileUrl, selectedChapter]);
 
-  // Removed aggressive auto-resume on mount so chapter list shows first.
+  // Handle URL change to reset chapter selection on back button pop
+  useEffect(() => {
+    const query = new URLSearchParams(location.search);
+    if (query.get('chapter') !== 'active') {
+      setSelectedChapter(null);
+      setActiveLecture(null);
+    }
+  }, [location.search]);
 
   // View: Chapter List (Image 2)
   if (!selectedChapter) {
@@ -160,6 +168,7 @@ const CourseDetailScreen = () => {
                 onClick={() => {
                   window.scrollTo(0, 0);
                   setSelectedChapter(chapter);
+                  navigate(location.pathname + "?chapter=active", { state: location.state });
                   if (chapter.lectures && chapter.lectures.length > 0) {
                     let nextActiveLec = chapter.lectures[0];
                     let nextActiveIndex = 0;
@@ -237,7 +246,7 @@ const CourseDetailScreen = () => {
       {/* Top Header */}
       <header className="bg-black p-4 flex items-center justify-between">
         <button
-          onClick={() => setSelectedChapter(null)}
+          onClick={() => navigate(-1)}
           className="flex items-center gap-2 text-sm font-semibold hover:text-[#FFD700] transition-colors uppercase"
         >
           <ArrowLeft size={18} /> BACK

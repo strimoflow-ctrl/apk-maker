@@ -21,8 +21,12 @@ const LibraryScreen = () => {
             }
           });
         } else {
-          // If the whole course/coaching was saved
-          navigate(`/${item.type}/${item.courseId}`);
+          // If the whole course/coaching/batch was saved
+          navigate(`/${item.type}/${item.courseId}`, {
+            state: {
+              activeBatchName: item.activeBatchName
+            }
+          });
         }
         break;
       case 'pdf':

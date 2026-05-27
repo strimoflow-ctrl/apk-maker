@@ -250,6 +250,25 @@ const HomeScreen = () => {
         console.warn('Failed to index crash courses for search:', e);
       }
 
+      // 5. Index Test Zone Series
+      try {
+        const testData = await fetchWithCache('/api/directory/testzone.json', 'cache_testzone_directory');
+        if (Array.isArray(testData)) {
+          testData.forEach(item => {
+            index.push({
+              type: 'test-zone',
+              title: item.name || item.id,
+              subtitle: 'Premium Test Series',
+              path: `/test-zone/${item.id}`,
+              state: {},
+              searchString: `${item.name || ''} ${item.id || ''} test zone online practice mocking paper`.toLowerCase()
+            });
+          });
+        }
+      } catch (e) {
+        console.warn('Failed to index test zone for search:', e);
+      }
+
       setSearchIndex(index);
     };
 
@@ -300,6 +319,70 @@ const HomeScreen = () => {
 
   return (
     <div className="min-h-screen bg-[#000] text-white overflow-x-hidden font-inter pb-24 page-transition relative">
+      <style>{`
+        @keyframes gridCardEntrance {
+          0% { opacity: 0; transform: translateY(24px) scale(0.96); }
+          100% { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        .grid-card-anim {
+          animation: gridCardEntrance 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+        }
+        @keyframes orbFloat {
+          0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.03; }
+          50% { transform: translate(15px, -20px) scale(1.15); opacity: 0.08; }
+        }
+        @keyframes orbFloatAlt {
+          0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.04; }
+          50% { transform: translate(-20px, 25px) scale(1.2); opacity: 0.09; }
+        }
+        @keyframes bannerTimerProgress {
+          0% { width: 0%; }
+          100% { width: 100%; }
+        }
+        @keyframes zapPulse {
+          0%, 100% { transform: scale(1) rotate(0deg); }
+          50% { transform: scale(1.2) rotate(15deg); }
+        }
+        .group:hover .icon-zap-anim {
+          animation: zapPulse 0.5s cubic-bezier(0.25, 1, 0.5, 1) infinite;
+        }
+        @keyframes targetLock {
+          0% { transform: rotate(0deg) scale(1); }
+          50% { transform: rotate(180deg) scale(1.15); }
+          100% { transform: rotate(360deg) scale(1); }
+        }
+        .group:hover .icon-target-anim {
+          animation: targetLock 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        @keyframes bookBounce {
+          0%, 100% { transform: translateY(0) scale(1); }
+          50% { transform: translateY(-4px) scale(1.1); }
+        }
+        .group:hover .icon-book-anim {
+          animation: bookBounce 0.5s ease-in-out infinite;
+        }
+        @keyframes fileFold {
+          0%, 100% { transform: scale(1) skewX(0); }
+          50% { transform: scale(1.1) skewX(-5deg); }
+        }
+        .group:hover .icon-file-anim {
+          animation: fileFold 0.5s ease-in-out;
+        }
+        @keyframes storeBounce {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-3px) scaleX(1.08); }
+        }
+        .group:hover .icon-store-anim {
+          animation: storeBounce 0.5s ease-in-out infinite;
+        }
+        @keyframes starPulse {
+          0%, 100% { transform: scale(1) rotate(0deg); }
+          50% { transform: scale(1.25) rotate(72deg); }
+        }
+        .group:hover .icon-star-anim {
+          animation: starPulse 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+      `}</style>
       {/* Golden Grid Background Overlay */}
       <div className="fixed inset-0 z-0 pointer-events-none flex justify-center items-center">
         <div className="absolute inset-0 bg-golden-grid opacity-60"></div>
@@ -404,6 +487,19 @@ const HomeScreen = () => {
                   ))}
                 </div>
               )}
+
+              {/* Thin Golden Timer Bar */}
+              {bannersData.banners.length > 1 && (
+                <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-white/10 z-20 overflow-hidden">
+                  <div 
+                    key={currentBannerIndex} 
+                    className="h-full bg-gradient-to-r from-[#FFD700] to-yellow-500 rounded-full animate-banner-timer"
+                    style={{ 
+                      animation: `bannerTimerProgress ${(bannersData.autoSwipeSeconds || 3)}s linear forwards`
+                    }}
+                  />
+                </div>
+              )}
             </div>
           ) : (
             // Fallback if no banner exists
@@ -413,37 +509,65 @@ const HomeScreen = () => {
           )}
         </section>
 
-        {/* --- 3. 5-COLUMN MENU ICON SCROLLER / GRID --- */}
-        <section className="mb-8">
-          <div className="bg-[#111]/80 border border-white/5 rounded-3xl p-4 flex items-start justify-between shadow-lg backdrop-blur-md">
+        {/* --- 3. UNIFIED ACADEMIC DIRECTORY GRID (9 PREMIUM SECTIONS) --- */}
+        <section className="mb-8 relative">
+          {/* Background Ambient Glow Orbs */}
+          <div className="absolute top-1/4 -left-12 w-48 h-48 rounded-full bg-[#FFD700]/5 blur-3xl pointer-events-none" style={{ animation: 'orbFloat 10s ease-in-out infinite' }} />
+          <div className="absolute bottom-1/4 -right-12 w-48 h-48 rounded-full bg-[#BF5AF2]/5 blur-3xl pointer-events-none" style={{ animation: 'orbFloatAlt 12s ease-in-out infinite' }} />
+
+          <div className="flex items-center gap-2 mb-4 relative z-10">
+            <div className="w-1 h-4 bg-[#FFD700] rounded-full" />
+            <h3 className="font-oswald text-xs font-black tracking-[0.2em] text-gray-400 uppercase">
+              Academic Directory
+            </h3>
+          </div>
+
+          <div className="grid grid-cols-3 gap-3 relative z-10">
             {[
-              { label: "Teacher's Library", icon: BookOpen, path: '/teachers-library', color: 'text-[#FFD700]', bgClass: 'bg-[#FFD700]' },
-              { label: "Coaching Library", icon: Presentation, path: '/coaching', color: 'text-[#30D158]', bgClass: 'bg-[#30D158]' },
-              { label: "Crash Course", icon: Zap, path: '/crash', color: 'text-[#BF5AF2]', bgClass: 'bg-[#BF5AF2]' },
-              { label: "PDF Zone", icon: FileText, path: '/pdf-zone', color: 'text-[#FF453A]', bgClass: 'bg-[#FF453A]' },
-              { label: "Book Library", icon: Book, path: '/book-library', color: 'text-[#0A84FF]', bgClass: 'bg-[#0A84FF]' },
+              { label: "Teacher's Library", icon: BookOpen, path: '/teachers-library', color: 'text-[#FFD700]', bgClass: 'bg-[#FFD700]', desc: "Lectures & Vids", iconClass: "icon-book-anim" },
+              { label: "Coaching Library", icon: Presentation, path: '/coaching', color: 'text-[#30D158]', bgClass: 'bg-[#30D158]', desc: "Offline Batches", iconClass: "icon-store-anim" },
+              { label: "Crash Course", icon: Zap, path: '/crash', color: 'text-[#BF5AF2]', bgClass: 'bg-[#BF5AF2]', desc: "Quick Revision", iconClass: "icon-zap-anim" },
+              { label: "PDF Zone", icon: FileText, path: '/pdf-zone', color: 'text-[#FF453A]', bgClass: 'bg-[#FF453A]', desc: "Class Notes & DPP", iconClass: "icon-file-anim" },
+              { label: "Test Zone", icon: Trophy, path: '/test-zone', color: 'text-[#FFD700]', bgClass: 'bg-[#FFD700]', desc: "Online Test Series", iconClass: "icon-star-anim" },
+              { label: "Book Library", icon: Book, path: '/book-library', color: 'text-[#0A84FF]', bgClass: 'bg-[#0A84FF]', desc: "E-Books & Guides", iconClass: "icon-book-anim" },
+              { label: "Mentorship", icon: Target, path: '/mentorship', color: 'text-[#FFD700]', bgClass: 'bg-[#FFD700]', desc: "1-on-1 Guidance", iconClass: "icon-target-anim" },
+              { label: "Naino Store", icon: Store, path: '/store', color: 'text-[#30D158]', bgClass: 'bg-[#30D158]', desc: "Premium Material", iconClass: "icon-store-anim" },
+              { label: "Premium Notes", icon: Star, path: '#', color: 'text-[#BF5AF2]', bgClass: 'bg-[#BF5AF2]', desc: "Specials & Formulas", iconClass: "icon-star-anim" },
+              { label: "News", icon: Newspaper, path: '#', color: 'text-[#FF453A]', bgClass: 'bg-[#FF453A]', desc: "Exam Updates", iconClass: "icon-file-anim" },
             ].map((item, idx) => {
               const Icon = item.icon;
+              const isLast = idx === 9; // News is the 10th item (index 9)
               return (
-                <React.Fragment key={idx}>
-                  <button
-                    onClick={() => navigate(item.path)}
-                    className="group flex flex-col items-center justify-start flex-1 transition-all duration-300 active:scale-90 hover:-translate-y-1"
-                  >
-                    <div className="w-12 h-12 md:w-14 md:h-14 rounded-2xl bg-gradient-to-b from-white/10 to-white/5 border border-white/10 flex items-center justify-center mb-2 shadow-[0_8px_16px_rgba(0,0,0,0.4)] relative overflow-hidden group-hover:border-white/30 transition-colors">
-                      {/* Subtle background glow */}
-                      <div className={`absolute inset-0 opacity-20 blur-xl rounded-full ${item.bgClass}`} />
+                <button
+                  key={idx}
+                  onClick={() => { if (item.path !== '#') navigate(item.path); }}
+                  style={{ animationDelay: `${idx * 45}ms` }}
+                  className={`grid-card-anim group relative flex border border-white/5 rounded-2xl transition-all duration-300 active:scale-95 hover:border-[#FFD700]/30 hover:-translate-y-1 shadow-[0_4px_20px_rgba(0,0,0,0.4)] backdrop-blur-md ${
+                    isLast 
+                      ? 'col-span-3 flex-row items-center gap-4 px-5 py-3 bg-gradient-to-r from-[#111]/90 to-[#111]/45 min-h-[68px]' 
+                      : 'flex-col items-center justify-between p-3 bg-[#111]/80 min-h-[105px]'
+                  }`}
+                >
+                  <div className={`absolute inset-0 opacity-[0.02] group-hover:opacity-[0.08] blur-xl rounded-full transition-opacity duration-300 ${item.bgClass}`} />
+                  
+                  <div className={`rounded-xl bg-white/5 border border-white/10 flex items-center justify-center shadow-inner transition-colors group-hover:border-white/20 relative overflow-hidden shrink-0 ${
+                    isLast ? 'w-10 h-10' : 'w-10 h-10 mb-1.5'
+                  }`}>
+                    <div className={`absolute inset-0 opacity-10 blur-md rounded-full ${item.bgClass}`} />
+                    <Icon size={18} className={`${item.color} ${item.iconClass || ''} drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] z-10 transition-transform`} />
+                  </div>
 
-                      <Icon size={22} className={`${item.color} drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] z-10 transition-transform group-hover:scale-110`} />
-                    </div>
-                    <span className="text-[9px] md:text-[10px] font-bold text-center tracking-wide text-gray-300 max-w-[60px] leading-tight group-hover:text-white transition-colors">
+                  <div className={`flex flex-col ${isLast ? 'items-start text-left flex-1' : 'items-center text-center flex-1 justify-center'}`}>
+                    <span className="text-[10px] md:text-[11px] font-black tracking-wide text-white leading-tight">
                       {item.label}
                     </span>
-                  </button>
-                  {idx < 4 && (
-                    <div className="w-px h-12 bg-gradient-to-b from-transparent via-white/10 to-transparent self-center" />
-                  )}
-                </React.Fragment>
+                    <span className="text-[7px] text-gray-500 font-medium leading-tight mt-1 line-clamp-1 group-hover:text-gray-400 transition-colors">
+                      {item.desc}
+                    </span>
+                  </div>
+
+                  <div className="absolute top-1.5 right-1.5 w-1 h-1 rounded-full bg-white/10 group-hover:bg-[#FFD700] transition-colors" />
+                </button>
               );
             })}
           </div>
@@ -598,38 +722,7 @@ const HomeScreen = () => {
           </div>
         </section>
 
-        {/* --- 4.5 SECONDARY MENU GRID --- */}
-        <section className="mb-8">
-          <div className="bg-[#111]/80 border border-white/5 rounded-3xl p-4 flex items-start justify-between shadow-lg backdrop-blur-md">
-            {[
-              { label: "Mentorship", icon: Target, path: '/mentorship', color: 'text-[#FFD700]', bgClass: 'bg-[#FFD700]' },
-              { label: "Naino Store", icon: Store, path: '/store', color: 'text-[#30D158]', bgClass: 'bg-[#30D158]' },
-              { label: "Premium Notes", icon: Star, path: '#', color: 'text-[#BF5AF2]', bgClass: 'bg-[#BF5AF2]' },
-              { label: "News", icon: Newspaper, path: '#', color: 'text-[#FF453A]', bgClass: 'bg-[#FF453A]' },
-            ].map((item, idx) => {
-              const Icon = item.icon;
-              return (
-                <React.Fragment key={idx}>
-                  <button
-                    onClick={() => { if (item.path !== '#') navigate(item.path); }}
-                    className="group flex flex-col items-center justify-start flex-1 transition-all duration-300 active:scale-90 hover:-translate-y-1"
-                  >
-                    <div className="w-12 h-12 md:w-14 md:h-14 rounded-2xl bg-gradient-to-b from-white/10 to-white/5 border border-white/10 flex items-center justify-center mb-2 shadow-[0_8px_16px_rgba(0,0,0,0.4)] relative overflow-hidden group-hover:border-white/30 transition-colors">
-                      <div className={`absolute inset-0 opacity-20 blur-xl rounded-full ${item.bgClass}`} />
-                      <Icon size={22} className={`${item.color} drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] z-10 transition-transform group-hover:scale-110`} />
-                    </div>
-                    <span className="text-[9px] md:text-[10px] font-bold text-center tracking-wide text-gray-300 max-w-[60px] leading-tight group-hover:text-white transition-colors">
-                      {item.label}
-                    </span>
-                  </button>
-                  {idx < 3 && (
-                    <div className="w-px h-12 bg-gradient-to-b from-transparent via-white/10 to-transparent self-center" />
-                  )}
-                </React.Fragment>
-              );
-            })}
-          </div>
-        </section>
+        {/* Secondary menu merged with the top unified grid */}
 
         {/* --- 5. CONTINUE LEARNING SECTION --- */}
         <section className="mb-6">

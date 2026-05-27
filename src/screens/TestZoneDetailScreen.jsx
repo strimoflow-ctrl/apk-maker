@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Target, FileText, CheckCircle2, Search, PlayCircle, DownloadCloud, Loader2 } from 'lucide-react';
+import { Target, FileText, CheckCircle2, Search, PlayCircle, DownloadCloud, Loader2 } from 'lucide-react';
 import { useDownload } from '../context/DownloadContext';
 import NotificationModal from '../components/NotificationModal';
-import { resolveApiUrl } from '../utils/api';
+import { fetchWithCache } from '../utils/api';
 
 const TestZoneDetailScreen = () => {
   const { id } = useParams();
@@ -19,10 +19,19 @@ const TestZoneDetailScreen = () => {
   useEffect(() => {
     const fetchDetail = async () => {
       try {
-        const response = await fetch(resolveApiUrl(`/api/content/testzone/${id}.json`));
-        if (!response.ok) throw new Error('Failed to fetch');
-        const data = await response.json();
-        setTestData(data);
+        const data = await fetchWithCache(`/api/content/testzone/${id}.json`, `cache_testzone_detail_${id}`);
+        if (Array.isArray(data)) {
+          const mappedData = {
+            instituteName: id === 'neet_kaka_jee' ? 'NEET Kaka JEE' : id === 'neetkotaphy' ? 'NEET Kota Physics' : id,
+            categories: data.map(cat => ({
+              categoryName: cat.type_name || cat.categoryName || 'General',
+              tests: cat.files || cat.tests || []
+            }))
+          };
+          setTestData(mappedData);
+        } else {
+          setTestData(data);
+        }
       } catch (error) {
         console.error("Error loading test zone details:", error);
       } finally {
@@ -110,12 +119,6 @@ const TestZoneDetailScreen = () => {
       {/* Header */}
       <header className="sticky top-0 z-40 bg-[#050505]/90 backdrop-blur-xl border-b border-white/5 px-6 py-4">
         <div className="max-w-7xl mx-auto flex items-center gap-4">
-          <button
-            onClick={() => navigate(-1)}
-            className="w-10 h-10 bg-white/5 rounded-full flex items-center justify-center hover:bg-white/10 transition-colors"
-          >
-            <ArrowLeft size={20} className="text-white" />
-          </button>
           <div>
             <h1 className="text-xl md:text-2xl font-oswald font-bold text-[#FFD700] uppercase tracking-wide">
               {testData.instituteName}

@@ -129,10 +129,10 @@ const BackButtonHandler = () => {
             </svg>
           </div>
           <h2 className="text-white font-bold text-lg mb-1 font-oswald uppercase tracking-wide">
-            App Band Karein?
+            Exit App?
           </h2>
           <p className="text-gray-400 text-sm leading-relaxed">
-            Kya aap Naino Academy band karna chahte hain?
+            Are you sure you want to close Naino Academy?
           </p>
         </div>
 

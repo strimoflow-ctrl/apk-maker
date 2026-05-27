@@ -24,44 +24,77 @@ export const resolveApiUrl = (url) => {
   return url;
 };
 
-export const fetchWithCache = async (url, cacheKey, ttlMs = 5 * 60 * 1000) => {
+export const fetchWithCache = async (url, cacheKey, ttlMs = 30 * 1000) => {
+  // 1. If navigator detects offline, return localStorage cache instantly
+  if (typeof navigator !== 'undefined' && !navigator.onLine) {
+    try {
+      const cachedRaw = localStorage.getItem(`offline_api_${cacheKey}`);
+      if (cachedRaw) {
+        const data = decryptData(cachedRaw);
+        return data;
+      }
+    } catch (e) {
+      console.warn('Offline cache lookup failed:', e);
+    }
+  }
+
+  // 2. Try memory cache for snappy transitions
   try {
     const cachedItem = memoryCache[cacheKey];
     if (cachedItem) {
       const now = new Date().getTime();
-      
-      // If cache hasn't expired
       if (now - cachedItem.timestamp < ttlMs) {
         return cachedItem.data;
       }
-      // If expired, remove it
       delete memoryCache[cacheKey];
     }
   } catch (e) {
-    console.warn('Error reading from cache:', e);
+    console.warn('Error reading from memory cache:', e);
   }
 
   const resolvedUrl = resolveApiUrl(url);
-  // Fetch new data
-  const response = await fetch(resolvedUrl);
-  if (!response.ok) {
-    throw new Error(`Failed to fetch from ${url}`);
-  }
-  
-  const rawText = await response.text();
-  const data = decryptData(rawText);
-  
-  // Save to memory cache (NEVER to sessionStorage to prevent decryption leaks)
   try {
-    memoryCache[cacheKey] = {
-      timestamp: new Date().getTime(),
-      data: data
-    };
-  } catch (e) {
-    console.warn('Error saving to cache:', e);
+    // 3. Try fetching from network
+    const response = await fetch(resolvedUrl);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch from ${url}`);
+    }
+    
+    const rawText = await response.text();
+    const data = decryptData(rawText);
+    
+    // Save to memory cache
+    try {
+      memoryCache[cacheKey] = {
+        timestamp: new Date().getTime(),
+        data: data
+      };
+    } catch (e) {
+      console.warn('Error saving to memory cache:', e);
+    }
+
+    // Save encrypted rawText to localStorage for offline fallback
+    try {
+      localStorage.setItem(`offline_api_${cacheKey}`, rawText);
+    } catch (e) {
+      console.warn('Error saving to offline cache:', e);
+    }
+    
+    return data;
+  } catch (err) {
+    console.warn(`Network request failed for ${url}, trying offline cache...`, err);
+    // 4. Fallback to localStorage if network fails
+    try {
+      const cachedRaw = localStorage.getItem(`offline_api_${cacheKey}`);
+      if (cachedRaw) {
+        const data = decryptData(cachedRaw);
+        return data;
+      }
+    } catch (e) {
+      console.error('Failed to load from offline cache:', e);
+    }
+    throw err;
   }
-  
-  return data;
 };
 
 // Helper for Backend API

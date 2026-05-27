@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { fetchBackendAPI } from '../utils/api';
 import { useAlert } from '../context/AlertContext';
@@ -20,6 +20,7 @@ const MyProgressScreen = () => {
   const navigate = useNavigate();
   const { showAlert } = useAlert();
   const secretKey = localStorage.getItem('naino_access_token') || 'XXXXXX';
+  const dateContainerRef = useRef(null);
 
   // --- Study Progress States ---
   const [selectedDate, setSelectedDate] = useState(getTodayDateString());
@@ -36,7 +37,65 @@ const MyProgressScreen = () => {
   // --- Sticky Notes States ---
   const [stickyNotes, setStickyNotes] = useState([]);
   const [plannerStats, setPlannerStats] = useState({ totalCreated: 0, totalCompleted: 0 });
-  const [dailyWin, setDailyWin] = useState('');
+
+  // Auto-scroll to Today's date on mount
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (dateContainerRef.current) {
+        dateContainerRef.current.scrollLeft = dateContainerRef.current.scrollWidth;
+      }
+    }, 100);
+    return () => clearTimeout(timer);
+  }, []);
+
+  const auraTier = useMemo(() => {
+    const minutes = Math.round((dayData?.seconds || 0) / 60);
+    if (minutes === 0) {
+      return {
+        title: "Sleep Mode 😴",
+        desc: "Start a lecture or test to activate your focus aura!",
+        icon: "😴"
+      };
+    } else if (minutes <= 45) {
+      return {
+        title: "Warm-Up Mode 🌱",
+        desc: "Getting warmed up. Consistency is key!",
+        icon: "🌱"
+      };
+    } else if (minutes <= 120) {
+      return {
+        title: "Focus Fighter ⚔️",
+        desc: "Great job! You are fighting for your dreams.",
+        icon: "⚔️"
+      };
+    } else if (minutes <= 240) {
+      return {
+        title: "Beast Mode 🦁",
+        desc: "Outstanding focus! You are outworking the competition.",
+        icon: "🦁"
+      };
+    } else {
+      return {
+        title: "God Mode 🔥",
+        desc: "Unstoppable! You are in the top 1% of aspirants today.",
+        icon: "🔥"
+      };
+    }
+  }, [dayData?.seconds]);
+
+  const dailyTip = useMemo(() => {
+    const tips = [
+      "Revision is the key. Make sure to review your weak topics today.",
+      "Solve at least 15 Physics numericals before going to sleep.",
+      "A 5-minute break after 45 minutes of focus will boost your memory retention.",
+      "Don't memorize biology diagrams; draw them once to store them in long-term memory.",
+      "Organic Chemistry mechanisms are easier to remember when you write them down step-by-step.",
+      "Drink enough water. Dehydration reduces focus levels by 20%.",
+      "Mock tests are not to judge you, they are to teach you where to improve."
+    ];
+    const dayIndex = new Date(selectedDate).getDate() % tips.length;
+    return tips[dayIndex];
+  }, [selectedDate]);
   const [newNoteText, setNewNoteText] = useState('');
   const [newNoteTag, setNewNoteTag] = useState('normal');
   const [newNoteTime, setNewNoteTime] = useState('Morning');
@@ -95,7 +154,6 @@ const MyProgressScreen = () => {
         const data = response.data;
         setStickyNotes(data.stickyNotes || []);
         setPlannerStats(data.plannerStats || { totalCreated: 0, totalCompleted: 0 });
-        setDailyWin(data.dailyWin || '');
       } catch (e) {
         console.error("Error loading account data:", e);
       }
@@ -222,19 +280,7 @@ const MyProgressScreen = () => {
     }
   };
 
-  const handleSaveDailyWin = async (text) => {
-    setDailyWin(text);
-    try {
-      await fetchBackendAPI('/api/keys/update', 'POST', {
-        code: secretKey,
-        deviceId: localStorage.getItem('naino_device_uuid'),
-        updates: { dailyWin: text }
-      });
-      showAlert("Daily win saved successfully!", "success");
-    } catch (err) {
-      console.error("Error saving daily win:", err);
-    }
-  };
+  // handleSaveDailyWin removed
 
   // --- Calendar Helpers ---
   const getDaysInMonth = (date) => {
@@ -325,7 +371,7 @@ const MyProgressScreen = () => {
           </button>
         </div>
 
-        <div className="flex gap-3 overflow-x-auto hide-scrollbar pb-2 mb-6">
+        <div className="flex gap-3 overflow-x-auto hide-scrollbar pb-2 mb-6" ref={dateContainerRef}>
           {quickDates.map((dateStr) => {
             const isSelected = selectedDate === dateStr;
             const dObj = new Date(dateStr);
@@ -752,28 +798,33 @@ const MyProgressScreen = () => {
             </div>
           )}
 
-          {/* Daily Win Reflection */}
-          <div className="bg-gradient-to-r from-[#FFD700]/10 to-transparent border border-[#FFD700]/15 rounded-3xl p-5 mt-6 shadow-[0_10px_30px_rgba(255,215,0,0.02)]">
-            <div className="flex items-center gap-2 mb-3">
-              <Smile size={18} className="text-[#FFD700] fill-[#FFD700]/10" />
-              <span className="text-[9px] text-[#FFD700] font-black uppercase tracking-[0.15em]">Daily Win & Reflection</span>
-            </div>
-            <p className="text-[10px] text-gray-400 mb-3 leading-relaxed">Write down your biggest achievement, a lesson learned, or something that made you smile today!</p>
+          {/* Study Aura & Motivation Card (Premium gamified replacement for Daily Win) */}
+          <div className="relative bg-gradient-to-br from-[#111] to-[#050505] border border-white/5 rounded-3xl p-5 mt-6 overflow-hidden shadow-xl">
+            {/* Ambient Background Glow */}
+            <div className="absolute top-0 right-0 w-24 h-24 bg-[#FFD700]/5 rounded-full blur-2xl pointer-events-none" />
             
-            <div className="flex gap-2">
-              <input 
-                type="text"
-                value={dailyWin}
-                onChange={(e) => setDailyWin(e.target.value)}
-                placeholder="e.g. Mastered Organic Chemistry mechanisms today! 🔥"
-                className="flex-1 bg-black/60 border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder-gray-600 focus:border-[#FFD700] outline-none transition-all"
-              />
-              <button 
-                onClick={() => handleSaveDailyWin(dailyWin)}
-                className="bg-[#FFD700]/10 border border-[#FFD700]/25 text-[#FFD700] hover:bg-[#FFD700] hover:text-black px-4 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all"
-              >
-                Save
-              </button>
+            <div className="flex items-center gap-2 mb-3 relative z-10">
+              <Award size={18} className="text-[#FFD700] fill-[#FFD700]/10" />
+              <span className="text-[9px] text-[#FFD700] font-black uppercase tracking-[0.15em]">Daily Focus Aura</span>
+            </div>
+
+            <div className="flex items-center gap-4 relative z-10 mb-4 bg-white/[0.02] border border-white/5 p-4 rounded-2xl">
+              <div className="text-3xl">{auraTier.icon}</div>
+              <div>
+                <span className="text-[10px] text-gray-500 uppercase font-black tracking-widest block">Current Status</span>
+                <span className="text-sm font-black text-white block mt-0.5">{auraTier.title}</span>
+                <span className="text-[10px] text-gray-400 block mt-1 leading-snug">{auraTier.desc}</span>
+              </div>
+            </div>
+
+            <div className="border-t border-white/5 pt-4 flex items-start gap-3 relative z-10">
+              <Lightbulb size={16} className="text-[#FFD700] shrink-0 mt-0.5" />
+              <div>
+                <span className="text-[9px] text-gray-500 uppercase font-black tracking-widest block">Daily Aspirant Tip</span>
+                <p className="text-[11px] text-gray-300 leading-relaxed mt-1 font-medium italic">
+                  "{dailyTip}"
+                </p>
+              </div>
             </div>
           </div>
         </div>
