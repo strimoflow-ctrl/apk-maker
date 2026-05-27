@@ -160,6 +160,101 @@ const CoachingDetailScreen = () => {
     }
   }, [location.search]);
 
+  // Save active lecture state to sessionStorage to survive navigation
+  useEffect(() => {
+    if (selectedChapter && activeLecture) {
+      sessionStorage.setItem(`naino_active_coaching_${coachingId}_chapter`, JSON.stringify(selectedChapter));
+      sessionStorage.setItem(`naino_active_coaching_${coachingId}_lecture`, JSON.stringify(activeLecture));
+      sessionStorage.setItem(`naino_active_coaching_${coachingId}_index`, String(activeLectureIndex));
+      sessionStorage.setItem(`naino_active_coaching_${coachingId}_batch_index`, String(activeBatchIndex));
+      sessionStorage.setItem(`naino_active_coaching_${coachingId}_subject_index`, String(activeSubjectIndex));
+    }
+  }, [selectedChapter, activeLecture, activeLectureIndex, activeBatchIndex, activeSubjectIndex, coachingId]);
+
+  useEffect(() => {
+    if (!selectedChapter) {
+      sessionStorage.removeItem(`naino_active_coaching_${coachingId}_chapter`);
+      sessionStorage.removeItem(`naino_active_coaching_${coachingId}_lecture`);
+      sessionStorage.removeItem(`naino_active_coaching_${coachingId}_index`);
+      sessionStorage.removeItem(`naino_active_coaching_${coachingId}_batch_index`);
+      sessionStorage.removeItem(`naino_active_coaching_${coachingId}_subject_index`);
+    }
+  }, [selectedChapter, coachingId]);
+
+  // Restore active lecture state on mount/data load if URL query has ?chapter=active
+  useEffect(() => {
+    const query = new URLSearchParams(location.search);
+    if (query.get('chapter') === 'active' && !selectedChapter && activeBatchData && activeBatchData.subjects) {
+      try {
+        const savedChapter = sessionStorage.getItem(`naino_active_coaching_${coachingId}_chapter`);
+        const savedLecture = sessionStorage.getItem(`naino_active_coaching_${coachingId}_lecture`);
+        const savedIndex = sessionStorage.getItem(`naino_active_coaching_${coachingId}_index`);
+        const savedBatchIndex = sessionStorage.getItem(`naino_active_coaching_${coachingId}_batch_index`);
+        const savedSubjectIndex = sessionStorage.getItem(`naino_active_coaching_${coachingId}_subject_index`);
+        
+        if (savedChapter && savedLecture) {
+          const ch = JSON.parse(savedChapter);
+          const lec = JSON.parse(savedLecture);
+          
+          let chapterExists = false;
+          const targetSubjectIndex = savedSubjectIndex ? parseInt(savedSubjectIndex, 10) : activeSubjectIndex;
+          const subject = activeBatchData.subjects[targetSubjectIndex];
+          if (subject) {
+            const foundCh = (subject.chapters || []).find(c => c.name === ch.name || c.chapter === ch.chapter || c.name === ch.chapter || c.chapter === ch.name);
+            if (foundCh) {
+              const foundLec = (foundCh.lectures || []).find(l => l.name === lec.name);
+              if (foundLec) {
+                chapterExists = true;
+                if (savedBatchIndex !== null) setActiveBatchIndex(parseInt(savedBatchIndex, 10));
+                setActiveSubjectIndex(targetSubjectIndex);
+                setSelectedChapter(foundCh);
+                setActiveLecture(foundLec);
+                setActiveLectureIndex(savedIndex ? parseInt(savedIndex, 10) : 0);
+                
+                getOfflineFileUrl('video', coachingId, lec.name).then(offlineUrl => {
+                  setOfflineVideoUrl(offlineUrl);
+                });
+              }
+            }
+          }
+          
+          if (!chapterExists) {
+            // Check all subjects
+            for (let s = 0; s < activeBatchData.subjects.length; s++) {
+              if (s === targetSubjectIndex) continue;
+              const sub = activeBatchData.subjects[s];
+              const foundCh = (sub.chapters || []).find(c => c.name === ch.name || c.chapter === ch.chapter || c.name === ch.chapter || c.chapter === ch.name);
+              if (foundCh) {
+                const foundLec = (foundCh.lectures || []).find(l => l.name === lec.name);
+                if (foundLec) {
+                  chapterExists = true;
+                  if (savedBatchIndex !== null) setActiveBatchIndex(parseInt(savedBatchIndex, 10));
+                  setActiveSubjectIndex(s);
+                  setSelectedChapter(foundCh);
+                  setActiveLecture(foundLec);
+                  setActiveLectureIndex(savedIndex ? parseInt(savedIndex, 10) : 0);
+                  
+                  getOfflineFileUrl('video', coachingId, lec.name).then(offlineUrl => {
+                    setOfflineVideoUrl(offlineUrl);
+                  });
+                  break;
+                }
+              }
+            }
+          }
+          
+          if (!chapterExists) {
+            navigate(location.pathname, { replace: true });
+          }
+        } else {
+          navigate(location.pathname, { replace: true });
+        }
+      } catch (e) {
+        console.error("Failed to restore active lecture state:", e);
+      }
+    }
+  }, [activeBatchData, location.search, coachingId, navigate, getOfflineFileUrl, selectedChapter]);
+
   // Auto-play from state (e.g. from Recent Activity)
   useEffect(() => {
     if (coachingData && location.state?.autoPlayLecture && !selectedChapter) {

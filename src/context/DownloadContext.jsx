@@ -98,9 +98,13 @@ export const DownloadProvider = ({ children }) => {
   const chunksRef = useRef({}); // Store active chunks in memory to save on pause
   const { showAlert } = useAlert();
 
-  // Create silent notification channel on mount
+  // Create silent notification channel on mount and request permissions
   useEffect(() => {
     if (isCapacitor) {
+      LocalNotifications.requestPermissions()
+        .then(status => console.log("LocalNotifications permission:", status))
+        .catch(e => console.warn("Failed to request notification permission:", e));
+
       LocalNotifications.createChannel({
         id: 'download-progress',
         name: 'Download Progress',
@@ -159,7 +163,9 @@ export const DownloadProvider = ({ children }) => {
             pausedState[meta.key] = {
               ...meta,
               status: 'paused',
-              progress: meta.total ? (meta.loaded / meta.total) * 100 : 0
+              progress: meta.total 
+                ? (meta.loaded / meta.total) * 100 
+                : (meta.isHLS && meta.totalSegments ? (meta.currentSegment / meta.totalSegments) * 100 : 0)
             };
           }
         }
@@ -291,6 +297,8 @@ export const DownloadProvider = ({ children }) => {
                   progress: currentPercent, 
                   loaded: totalBytesLoaded, 
                   total: 0, 
+                  isHLS: true,
+                  totalSegments: total,
                   currentSegment: i + 1,
                   title,
                   type,
@@ -483,7 +491,7 @@ export const DownloadProvider = ({ children }) => {
         
         const meta = {
           key: downloadKey, courseId, itemId, title: state.title, type: state.type, courseTitle: state.courseTitle, chapterName: state.chapterName, loaded: state.loaded, total: state.total, url: state.url,
-          currentSegment: state.currentSegment
+          currentSegment: state.currentSegment, isHLS: state.isHLS, totalSegments: state.totalSegments
         };
         await set(`${partialKey}_meta`, meta);
         delete chunksRef.current[downloadKey];

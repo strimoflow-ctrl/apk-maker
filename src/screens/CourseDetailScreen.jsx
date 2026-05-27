@@ -128,6 +128,66 @@ const CourseDetailScreen = () => {
     }
   }, [location.search]);
 
+  // Save active lecture state to sessionStorage to survive navigation
+  useEffect(() => {
+    if (selectedChapter && activeLecture) {
+      sessionStorage.setItem(`naino_active_course_${courseId}_chapter`, JSON.stringify(selectedChapter));
+      sessionStorage.setItem(`naino_active_course_${courseId}_lecture`, JSON.stringify(activeLecture));
+      sessionStorage.setItem(`naino_active_course_${courseId}_index`, String(activeLectureIndex));
+    }
+  }, [selectedChapter, activeLecture, activeLectureIndex, courseId]);
+
+  useEffect(() => {
+    if (!selectedChapter) {
+      sessionStorage.removeItem(`naino_active_course_${courseId}_chapter`);
+      sessionStorage.removeItem(`naino_active_course_${courseId}_lecture`);
+      sessionStorage.removeItem(`naino_active_course_${courseId}_index`);
+    }
+  }, [selectedChapter, courseId]);
+
+  // Restore active lecture state on mount if URL query has ?chapter=active
+  useEffect(() => {
+    const query = new URLSearchParams(location.search);
+    if (query.get('chapter') === 'active' && !selectedChapter && courseData) {
+      try {
+        const savedChapter = sessionStorage.getItem(`naino_active_course_${courseId}_chapter`);
+        const savedLecture = sessionStorage.getItem(`naino_active_course_${courseId}_lecture`);
+        const savedIndex = sessionStorage.getItem(`naino_active_course_${courseId}_index`);
+        
+        if (savedChapter && savedLecture) {
+          const ch = JSON.parse(savedChapter);
+          const lec = JSON.parse(savedLecture);
+          
+          let chapterExists = false;
+          for (const subject of courseData.subjects || []) {
+            const foundCh = (subject.chapters || []).find(c => c.name === ch.name || c.chapter === ch.chapter || c.name === ch.chapter || c.chapter === ch.name);
+            if (foundCh) {
+              const foundLec = (foundCh.lectures || []).find(l => l.name === lec.name);
+              if (foundLec) {
+                chapterExists = true;
+                setSelectedChapter(foundCh);
+                setActiveLecture(foundLec);
+                setActiveLectureIndex(savedIndex ? parseInt(savedIndex, 10) : 0);
+                
+                getOfflineFileUrl('video', courseId, lec.name).then(offlineUrl => {
+                  setOfflineVideoUrl(offlineUrl);
+                });
+                break;
+              }
+            }
+          }
+          if (!chapterExists) {
+            navigate(location.pathname, { replace: true });
+          }
+        } else {
+          navigate(location.pathname, { replace: true });
+        }
+      } catch (e) {
+        console.error("Failed to restore active lecture state:", e);
+      }
+    }
+  }, [courseData, location.search, courseId, navigate, getOfflineFileUrl, selectedChapter]);
+
   // View: Chapter List (Image 2)
   if (!selectedChapter) {
     return (

@@ -4,6 +4,70 @@ import { Download, HardDrive, Trash2, Play, Pause, CheckCircle, Loader2, AlertTr
 import { useNavigate } from 'react-router-dom';
 import { useDownload } from '../context/DownloadContext';
 import NotificationModal from '../components/NotificationModal';
+import { Capacitor } from '@capacitor/core';
+import { Filesystem, Directory } from '@capacitor/filesystem';
+
+const isCapacitor = Capacitor.isNativePlatform();
+
+const blobToBase64 = (blob) => new Promise((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onerror = reject;
+  reader.onload = () => {
+    resolve(reader.result);
+  };
+  reader.readAsDataURL(blob);
+});
+
+const saveFileToDevice = async (url, fileName) => {
+  if (isCapacitor) {
+    try {
+      try {
+        const perm = await Filesystem.checkPermissions();
+        if (perm.publicStorage !== 'granted') {
+          await Filesystem.requestPermissions();
+        }
+      } catch (err) {
+        console.warn("Storage permission request error:", err);
+      }
+
+      const res = await fetch(url);
+      const blob = await res.blob();
+      const base64Data = (await blobToBase64(blob)).split(',')[1];
+      
+      await Filesystem.writeFile({
+        path: fileName,
+        data: base64Data,
+        directory: Directory.Downloads
+      });
+      return true;
+    } catch (e) {
+      console.error("Failed to write to Downloads, trying Documents directory...", e);
+      try {
+        const res = await fetch(url);
+        const blob = await res.blob();
+        const base64Data = (await blobToBase64(blob)).split(',')[1];
+        await Filesystem.writeFile({
+          path: fileName,
+          data: base64Data,
+          directory: Directory.Documents
+        });
+        return true;
+      } catch (err) {
+        console.error("Documents fallback failed:", err);
+        throw err;
+      }
+    }
+  } else {
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    return true;
+  }
+};
+
 
 const ConfirmModal = ({ isOpen, title, message, onConfirm, onCancel }) => {
   if (!isOpen) return null;
@@ -151,34 +215,34 @@ const DownloadScreen = () => {
       navigate('/pdf', { state: { file: url, title: dl.title } });
     } else if (action === 'extract') {
       try {
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${dl.title}.zip`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
+        await saveFileToDevice(url, `${dl.title}.zip`);
         setNotification({
           isOpen: true,
           title: "ZIP Exported",
-          message: "This ZIP module has been exported to your phone's Downloads folder. Please extract it using File Manager.",
+          message: isCapacitor 
+            ? `"${dl.title}.zip" has been saved to your device's Downloads folder.` 
+            : "This ZIP module has been exported to your phone's Downloads folder. Please extract it using File Manager.",
           type: "zip"
         });
-      } catch (e) { console.error('Extract error', e); }
+      } catch (e) { 
+        console.error('Extract error', e); 
+        alert("Failed to export ZIP file.");
+      }
     } else if (action === 'save') {
       try {
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${dl.title}.pdf`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
+        await saveFileToDevice(url, `${dl.title}.pdf`);
         setNotification({
           isOpen: true,
           title: "Saved to Phone",
-          message: `"${dl.title}" has been saved to your phone's Downloads folder.`,
+          message: isCapacitor
+            ? `"${dl.title}.pdf" has been saved to your device's Downloads folder.`
+            : `"${dl.title}" has been saved to your phone's Downloads folder.`,
           type: "success"
         });
-      } catch (e) { console.error('Save error', e); }
+      } catch (e) { 
+        console.error('Save error', e); 
+        alert("Failed to save PDF to phone.");
+      }
     }
   };
 
@@ -256,7 +320,11 @@ const DownloadScreen = () => {
                       </div>
 
                       <p className="text-[10px] text-gray-400 mt-2 text-right">
-                        {(dl.loaded / (1024 * 1024)).toFixed(2)} MB / {dl.total ? (dl.total / (1024 * 1024)).toFixed(2) + ' MB' : 'Unknown'}
+                        {(dl.loaded / (1024 * 1024)).toFixed(2)} MB 
+                        {dl.isHLS 
+                          ? ` (Seg ${dl.currentSegment || 0}/${dl.totalSegments || 0})`
+                          : ` / ${dl.total ? (dl.total / (1024 * 1024)).toFixed(2) + ' MB' : 'Unknown'}`
+                        }
                       </p>
                     </div>
                   );
