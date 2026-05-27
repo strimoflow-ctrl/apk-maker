@@ -3,8 +3,9 @@ import { set, get, keys, del } from 'idb-keyval';
 import { useAlert } from './AlertContext';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { KeepAwake } from '@capacitor-community/keep-awake';
+import { Capacitor } from '@capacitor/core';
 
-const isCapacitor = typeof window !== 'undefined' && !!window.Capacitor;
+const isCapacitor = Capacitor.isNativePlatform();
 
 // Helper to calculate a stable numeric ID from string key (required by LocalNotifications)
 const getNotificationId = (key) => {
@@ -337,7 +338,6 @@ export const DownloadProvider = ({ children }) => {
       } else {
         // Standard Download Logic (Existing)
         let proxyUrl = url;
-        const isCapacitor = typeof window !== 'undefined' && !!window.Capacitor;
         if (!isCapacitor) {
           if (url.includes('filestreambot-1-jx2x.onrender.com')) {
             proxyUrl = url.replace(/^https?:\/\/filestreambot-1-jx2x\.onrender\.com/, '');
