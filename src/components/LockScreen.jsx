@@ -199,8 +199,11 @@ const LockScreen = ({ onUnlock }) => {
     setLoading(true);
     try {
       const randomName = `User${Math.floor(1000 + Math.random() * 9000)}`;
-      const docRef = doc(db, 'access_keys', tempUserData.code);
-      await updateDoc(docRef, { username: randomName });
+      await fetchBackendAPI('/api/keys/update', 'POST', {
+        code: tempUserData.code,
+        deviceId: await getDeviceUuid(),
+        updates: { username: randomName }
+      });
       onUnlock({ ...tempUserData, username: randomName });
     } catch (err) {
       console.error(err);

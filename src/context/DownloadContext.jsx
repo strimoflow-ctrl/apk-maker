@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useRef } from 'r
 import { set, get, keys, del } from 'idb-keyval';
 import { useAlert } from './AlertContext';
 import { LocalNotifications } from '@capacitor/local-notifications';
+import { KeepAwake } from '@capacitor-community/keep-awake';
 
 const isCapacitor = typeof window !== 'undefined' && !!window.Capacitor;
 
@@ -27,7 +28,8 @@ const notifyStart = async (id, title) => {
         ongoing: true,
         autoCancel: false,
         smallIcon: 'ic_stat_download',
-        iconColor: '#FFD700'
+        iconColor: '#FFD700',
+        channelId: 'download-progress'
       }]
     });
   } catch (e) {
@@ -46,7 +48,8 @@ const notifyProgress = async (id, title, progress) => {
         ongoing: true,
         autoCancel: false,
         smallIcon: 'ic_stat_download',
-        iconColor: '#FFD700'
+        iconColor: '#FFD700',
+        channelId: 'download-progress'
       }]
     });
   } catch (e) {
@@ -93,6 +96,40 @@ export const DownloadProvider = ({ children }) => {
   const abortControllers = useRef({});
   const chunksRef = useRef({}); // Store active chunks in memory to save on pause
   const { showAlert } = useAlert();
+
+  // Create silent notification channel on mount
+  useEffect(() => {
+    if (isCapacitor) {
+      LocalNotifications.createChannel({
+        id: 'download-progress',
+        name: 'Download Progress',
+        description: 'Displays active download progress silently without vibrating or ringing.',
+        importance: 2, // LOW (no sound/vibration)
+        sound: null,
+        vibration: false,
+        visibility: 1
+      }).catch(e => console.warn("Failed to create progress channel:", e));
+    }
+  }, []);
+
+  // Manage KeepAwake lock based on active downloads
+  useEffect(() => {
+    if (!isCapacitor) return;
+    
+    const hasActiveDownloads = Object.values(activeDownloads).some(
+      d => d.status === 'downloading'
+    );
+    
+    if (hasActiveDownloads) {
+      KeepAwake.keepAwake()
+        .then(() => console.log("KeepAwake lock acquired - downloading..."))
+        .catch(e => console.warn("KeepAwake error:", e));
+    } else {
+      KeepAwake.allowSleep()
+        .then(() => console.log("KeepAwake lock released - idle."))
+        .catch(e => console.warn("KeepAwake error:", e));
+    }
+  }, [activeDownloads]);
 
   // Load existing downloads on mount
   useEffect(() => {

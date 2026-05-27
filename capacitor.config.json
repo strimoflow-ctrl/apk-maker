@@ -9,6 +9,9 @@
     "LocalNotifications": {
       "smallIcon": "ic_stat_download",
       "iconColor": "#FFD700"
+    },
+    "CapacitorHttp": {
+      "enabled": true
     }
   }
 }

@@ -55,14 +55,8 @@ const BackButtonHandler = () => {
         // On Home screen, show exit confirmation dialog
         setShowExitModal(true);
       } else {
-        const isDetailScreen = currentPath.startsWith('/course/') || currentPath.startsWith('/coaching/') || currentPath.startsWith('/crash/');
-        if (isDetailScreen) {
-          // On detail screens, direct back goes to Home screen (and replaces history)
-          navigate('/', { replace: true });
-        } else {
-          // On other secondary pages (downloads, account, pdf etc.), perform natural history back
-          navigate(-1);
-        }
+        // Perform natural history back for all non-home screens
+        navigate(-1);
       }
     });
 
@@ -95,16 +89,8 @@ const BackButtonHandler = () => {
         // User clicked back while already on Home! Lock and show exit modal.
         window.history.pushState({ locked: true }, '', window.location.href);
         setShowExitModal(true);
-      } else if (newPath !== '/') {
-        // If the target path is a course/coaching/crash detail screen, allow natural navigation
-        const isDetailScreen = newPath.startsWith('/course/') || newPath.startsWith('/coaching/') || newPath.startsWith('/crash/');
-        if (isDetailScreen) {
-          return;
-        }
-
-        // On other screens, back button brings us directly to Home
-        navigate('/', { replace: true });
       }
+      // For all other page transitions, allow natural history navigation without force redirecting to Home.
     };
 
     window.addEventListener('popstate', handlePopState);
