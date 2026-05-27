@@ -172,14 +172,15 @@ const CoachingDetailScreen = () => {
   }, [selectedChapter, activeLecture, activeLectureIndex, activeBatchIndex, activeSubjectIndex, coachingId]);
 
   useEffect(() => {
-    if (!selectedChapter) {
+    const query = new URLSearchParams(location.search);
+    if (query.get('chapter') !== 'active') {
       sessionStorage.removeItem(`naino_active_coaching_${coachingId}_chapter`);
       sessionStorage.removeItem(`naino_active_coaching_${coachingId}_lecture`);
       sessionStorage.removeItem(`naino_active_coaching_${coachingId}_index`);
       sessionStorage.removeItem(`naino_active_coaching_${coachingId}_batch_index`);
       sessionStorage.removeItem(`naino_active_coaching_${coachingId}_subject_index`);
     }
-  }, [selectedChapter, coachingId]);
+  }, [location.search, coachingId]);
 
   // Restore active lecture state on mount/data load if URL query has ?chapter=active
   useEffect(() => {

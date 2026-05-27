@@ -129,7 +129,7 @@ const App = () => {
       // Create a nice golden toast for foreground notifications
       const title = payload.notification?.title || 'New Notification';
       const body = payload.notification?.body || '';
-      
+
       const toast = document.createElement('div');
       toast.className = 'fixed top-4 left-4 right-4 md:left-auto md:right-4 md:w-96 bg-[#111]/90 backdrop-blur-xl border border-[#FFD700]/30 rounded-2xl p-4 shadow-[0_10px_40px_rgba(255,215,0,0.2)] z-[9999] animate-slide-up flex flex-col cursor-pointer border-l-4 border-l-[#FFD700]';
       toast.innerHTML = `
@@ -141,13 +141,13 @@ const App = () => {
         </div>
         <p class="text-sm text-gray-300 leading-relaxed ml-11 line-clamp-2">${body}</p>
       `;
-      
+
       toast.onclick = () => {
         toast.remove();
       };
-      
+
       document.body.appendChild(toast);
-      
+
       setTimeout(() => {
         if (document.body.contains(toast)) {
           toast.style.opacity = '0';
@@ -161,11 +161,11 @@ const App = () => {
     // Global listener for pending request approvals/rejections via SSE
     const token = localStorage.getItem('naino_access_token');
     let eventSource = null;
-    
+
     if (token && token !== 'XXXXXX') {
       const backendUrl = import.meta.env.VITE_BACKEND_API_URL || 'https://naino-app-backend-production.up.railway.app';
       eventSource = new EventSource(`${backendUrl}/api/keys/listen?code=${token}`);
-      
+
       eventSource.onmessage = (event) => {
         try {
           const payload = JSON.parse(event.data);
@@ -174,16 +174,16 @@ const App = () => {
             if (pending) {
               const lastStatus = sessionStorage.getItem('naino_last_pending_status');
               const currentStatus = pending.status?.trim().toLowerCase();
-              
+
               if (lastStatus === 'pending' && currentStatus !== 'pending') {
                 const toast = document.createElement('div');
                 toast.className = 'fixed top-4 left-4 right-4 md:left-auto md:right-4 md:w-96 bg-[#111]/90 backdrop-blur-xl border border-[#FFD700]/30 rounded-2xl p-4 shadow-[0_10px_40px_rgba(255,215,0,0.2)] z-[9999] animate-slide-up flex flex-col cursor-pointer border-l-4 border-l-[#FFD700]';
-                
+
                 const title = currentStatus === 'approved' ? 'Payment Approved! 🎉' : 'Payment Rejected ❌';
-                const body = currentStatus === 'approved' 
-                  ? 'Welcome to Premium! Your account is now active and features are unlocked.' 
+                const body = currentStatus === 'approved'
+                  ? 'Welcome to Premium! Your account is now active and features are unlocked.'
                   : 'Your screenshot was rejected by admin. Please upload a valid payment proof.';
-                
+
                 toast.innerHTML = `
                   <div class="flex items-center gap-3 mb-1">
                     <div class="w-8 h-8 rounded-full bg-[#FFD700]/10 flex items-center justify-center shrink-0">
@@ -193,11 +193,11 @@ const App = () => {
                   </div>
                   <p class="text-sm text-gray-300 leading-relaxed ml-11 line-clamp-2">${body}</p>
                 `;
-                
+
                 toast.onclick = () => toast.remove();
                 document.body.appendChild(toast);
                 setTimeout(() => { if (document.body.contains(toast)) toast.remove(); }, 6000);
-                
+
                 if (currentStatus === 'approved') {
                   localStorage.setItem('naino_premium_member', 'true');
                   window.dispatchEvent(new Event('premiumStatusChanged'));
@@ -218,7 +218,7 @@ const App = () => {
           console.error("SSE parsing error", e);
         }
       };
-      
+
       eventSource.onerror = (error) => {
         console.error("SSE connection error", error);
         // Will auto-reconnect typically
@@ -244,12 +244,12 @@ const App = () => {
               code: token,
               deviceId: localStorage.getItem('naino_device_uuid')
             });
-            
+
             // Valid key, track daily active user
             const data = response.data;
             const now = new Date();
             const lastActiveDate = data.lastActiveAt ? new Date(data.lastActiveAt) : new Date(0);
-            
+
             // Only update if they haven't been active today
             if (lastActiveDate.toDateString() !== now.toDateString()) {
               fetchBackendAPI('/api/keys/update', 'POST', {
@@ -262,13 +262,13 @@ const App = () => {
             console.error("Failed to verify access key on startup:", error);
             // If API explicitly rejects it (404/403)
             if (error.message.includes('Invalid') || error.message.includes('Access Denied')) {
-               console.warn("Access Key has been revoked or deleted. Logging out.");
-               localStorage.removeItem('naino_access_token');
-               localStorage.removeItem('naino_user_name');
-               localStorage.removeItem('naino_user_avatar');
-               localStorage.removeItem('naino_premium_member');
-               sessionStorage.clear();
-               setIsUnlocked(false);
+              console.warn("Access Key has been revoked or deleted. Logging out.");
+              localStorage.removeItem('naino_access_token');
+              localStorage.removeItem('naino_user_name');
+              localStorage.removeItem('naino_user_avatar');
+              localStorage.removeItem('naino_premium_member');
+              sessionStorage.clear();
+              setIsUnlocked(false);
             }
           }
         }

@@ -162,14 +162,15 @@ const CrashCourseDetailScreen = () => {
   }, [selectedChapter, activeLecture, activeLectureIndex, activeBatchIndex, activeSubjectIndex, courseId]);
 
   useEffect(() => {
-    if (!selectedChapter) {
+    const query = new URLSearchParams(location.search);
+    if (query.get('chapter') !== 'active') {
       sessionStorage.removeItem(`naino_active_crash_${courseId}_chapter`);
       sessionStorage.removeItem(`naino_active_crash_${courseId}_lecture`);
       sessionStorage.removeItem(`naino_active_crash_${courseId}_index`);
       sessionStorage.removeItem(`naino_active_crash_${courseId}_batch_index`);
       sessionStorage.removeItem(`naino_active_crash_${courseId}_subject_index`);
     }
-  }, [selectedChapter, courseId]);
+  }, [location.search, courseId]);
 
   // Restore active lecture state on mount/data load if URL query has ?chapter=active
   useEffect(() => {

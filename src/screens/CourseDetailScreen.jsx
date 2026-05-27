@@ -138,12 +138,13 @@ const CourseDetailScreen = () => {
   }, [selectedChapter, activeLecture, activeLectureIndex, courseId]);
 
   useEffect(() => {
-    if (!selectedChapter) {
+    const query = new URLSearchParams(location.search);
+    if (query.get('chapter') !== 'active') {
       sessionStorage.removeItem(`naino_active_course_${courseId}_chapter`);
       sessionStorage.removeItem(`naino_active_course_${courseId}_lecture`);
       sessionStorage.removeItem(`naino_active_course_${courseId}_index`);
     }
-  }, [selectedChapter, courseId]);
+  }, [location.search, courseId]);
 
   // Restore active lecture state on mount if URL query has ?chapter=active
   useEffect(() => {
