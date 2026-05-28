@@ -304,9 +304,27 @@ const VideoPlayer = ({ videoUrl, title, courseId, lectureId, courseTitle, onVide
       >
         <iframe
           src={`https://www.youtube.com/embed/${youtubeId}?autoplay=1&rel=0&modestbranding=1&playsinline=1`}
-          className="w-full h-full border-0 absolute inset-0"
+          className="w-full h-full border-0 absolute inset-0 z-0"
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
           allowFullScreen
+          sandbox="allow-scripts allow-same-origin allow-presentation allow-forms"
+        />
+        {/* Top-Left overlay: Blocks channel name, avatar, and title, but leaves top-right icons (Volume, CC, Settings) clickable */}
+        <div 
+          className="absolute top-0 left-0 w-[70%] h-16 z-10 pointer-events-auto bg-transparent"
+          onClick={(e) => {
+            e.stopPropagation();
+            e.preventDefault();
+          }}
+        />
+
+        {/* Bottom-Left overlay: Blocks YouTube's share button completely from bottom-0 */}
+        <div 
+          className="absolute bottom-0 left-0 w-24 h-24 z-10 pointer-events-auto bg-transparent"
+          onClick={(e) => {
+            e.stopPropagation();
+            e.preventDefault();
+          }}
         />
       </div>
     );
