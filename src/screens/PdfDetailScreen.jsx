@@ -103,6 +103,9 @@ const PdfDetailScreen = () => {
                                     message: "This is a ZIP module. It has been exported to your phone's Downloads folder. Please open your File Manager to extract it.",
                                     type: "zip"
                                   });
+                                  if (url && url.startsWith('blob:')) {
+                                    URL.revokeObjectURL(url);
+                                  }
                                 } else {
                                   navigate('/pdf', { state: { file: url, title: chapter.title } });
                                 }

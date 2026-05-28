@@ -18,6 +18,15 @@ const PlayerScreen = () => {
   const [offlineVideoUrl, setOfflineVideoUrl] = useState(null);
 
   useEffect(() => {
+    return () => {
+      if (offlineVideoUrl && offlineVideoUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(offlineVideoUrl);
+        console.log("Revoked offline video blob URL:", offlineVideoUrl);
+      }
+    };
+  }, [offlineVideoUrl]);
+
+  useEffect(() => {
     const loadLecture = async () => {
       setLoading(true);
       try {

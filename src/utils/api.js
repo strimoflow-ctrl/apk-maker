@@ -106,10 +106,27 @@ export const fetchWithCache = async (url, cacheKey, ttlMs = 30 * 1000) => {
   }
 };
 
+export const getBackendUrl = () => {
+  let backendUrl = import.meta.env.VITE_BACKEND_API_URL || 'https://naino-app-backend-production.up.railway.app';
+  try {
+    const rawConfig = localStorage.getItem('naino_global_config');
+    if (rawConfig) {
+      const config = JSON.parse(rawConfig);
+      if (config && config.backendUrl) {
+        backendUrl = config.backendUrl.endsWith('/') ? config.backendUrl.slice(0, -1) : config.backendUrl;
+      }
+    }
+  } catch (e) {
+    console.warn("Failed to parse global config for backend URL", e);
+  }
+  return backendUrl;
+};
+
 // Helper for Backend API
 export const fetchBackendAPI = async (endpoint, method = 'GET', body = null) => {
-  const backendUrl = import.meta.env.VITE_BACKEND_API_URL || 'https://naino-app-backend-production.up.railway.app';
-  const url = `${backendUrl}${endpoint}`;
+  const backendUrl = getBackendUrl();
+
+  const url = `${backendUrl}${endpoint.startsWith('/') ? endpoint : '/' + endpoint}`;
   
   const options = {
     method,

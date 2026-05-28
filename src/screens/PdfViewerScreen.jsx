@@ -69,6 +69,10 @@ const PdfViewerScreen = () => {
           screen.orientation.unlock();
         }
       } catch (e) { }
+      if (file && typeof file === 'string' && file.startsWith('blob:')) {
+        URL.revokeObjectURL(file);
+        console.log("Revoked offline PDF blob URL:", file);
+      }
     };
   }, [file, navigate]);
 

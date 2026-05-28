@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Eye, EyeOff, Camera, LogOut, Send, AlertTriangle, ShieldCheck, User, X, Crown, Loader2, CheckCircle, Sparkles, Smartphone, QrCode, Edit2, BadgeCheck, BookOpen, Timer, Flame, TrendingUp, Tv, Calendar, ChevronRight, Plus, Trash2, Pin, Clock, ClipboardList, CheckSquare, Award, Lightbulb, Smile } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { fetchWithCache, fetchBackendAPI, getDynamicLink } from '../utils/api';
+import { fetchWithCache, fetchBackendAPI, getDynamicLink, getBackendUrl } from '../utils/api';
 import AvatarCropper from '../components/AvatarCropper';
 import ConfirmModal from '../components/ConfirmModal';
 import { useAlert } from '../context/AlertContext';
@@ -13,7 +13,7 @@ const AccountScreen = () => {
   const paymentInputRef = useRef(null);
   
   // Environment Configurations
-  const backendUrl = import.meta.env.VITE_BACKEND_API_URL || 'https://naino-paytm-backend.vercel.app';
+  const backendUrl = getBackendUrl();
   const imgbbKey = import.meta.env.VITE_IMGBB_API_KEY || '4c0c2a2c16a284fcd18ea8ef0cf199ed';
 
   const [keyVisible, setKeyVisible] = useState(false);
@@ -66,7 +66,7 @@ const AccountScreen = () => {
   useEffect(() => {
     if (!secretKey || secretKey === 'XXXXXX') return;
     
-    const backendUrlStr = import.meta.env.VITE_BACKEND_API_URL || 'https://naino-app-backend-production.up.railway.app';
+    const backendUrlStr = getBackendUrl();
     const eventSource = new EventSource(`${backendUrlStr}/api/keys/listen?code=${secretKey}`);
     
     eventSource.onmessage = (event) => {

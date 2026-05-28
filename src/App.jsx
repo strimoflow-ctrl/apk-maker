@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { HashRouter as Router, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
-import { fetchBackendAPI, fetchWithCache } from './utils/api';
+import { fetchBackendAPI, fetchWithCache, getBackendUrl } from './utils/api';
 import { DownloadProvider } from './context/DownloadContext';
 import { AlertProvider } from './context/AlertContext';
 import ScrollToTop from './components/ScrollToTop';
@@ -121,6 +121,61 @@ const App = () => {
     return !!localStorage.getItem('naino_access_token');
   });
 
+  // Dynamic config values in state
+  const [checkInterval, setCheckInterval] = useState(() => {
+    try {
+      const cached = localStorage.getItem('naino_global_config');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed.checkIntervalMinutes) return parsed.checkIntervalMinutes * 60 * 1000;
+      }
+    } catch (e) {}
+    return 7 * 60 * 1000; // default 7 minutes
+  });
+
+  const [maintenance, setMaintenance] = useState(() => {
+    try {
+      const cached = localStorage.getItem('naino_global_config');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        return parsed.maintenanceMode === true;
+      }
+    } catch (e) {}
+    return false;
+  });
+
+  const [maintenanceMsg, setMaintenanceMsg] = useState(() => {
+    try {
+      const cached = localStorage.getItem('naino_global_config');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed.maintenanceMessage) return parsed.maintenanceMessage;
+      }
+    } catch (e) {}
+    return "Naino Academy server updates are in progress. Please check back in a few minutes.";
+  });
+
+  // Sync config updates
+  useEffect(() => {
+    const handleConfigUpdate = () => {
+      try {
+        const cached = localStorage.getItem('naino_global_config');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          setMaintenance(parsed.maintenanceMode === true);
+          if (parsed.maintenanceMessage) {
+            setMaintenanceMsg(parsed.maintenanceMessage);
+          }
+          if (parsed.checkIntervalMinutes) {
+            setCheckInterval(parsed.checkIntervalMinutes * 60 * 1000);
+          }
+        }
+      } catch (e) {}
+    };
+    window.addEventListener('globalConfigUpdated', handleConfigUpdate);
+    return () => window.removeEventListener('globalConfigUpdated', handleConfigUpdate);
+  }, []);
+
   // PWA & Notification Setup
   useEffect(() => {
     // Request notification permission and listen for foreground messages
@@ -163,7 +218,7 @@ const App = () => {
     let eventSource = null;
 
     if (token && token !== 'XXXXXX') {
-      const backendUrl = import.meta.env.VITE_BACKEND_API_URL || 'https://naino-app-backend-production.up.railway.app';
+      const backendUrl = getBackendUrl();
       eventSource = new EventSource(`${backendUrl}/api/keys/listen?code=${token}`);
 
       eventSource.onmessage = (event) => {
@@ -229,7 +284,6 @@ const App = () => {
 
       eventSource.onerror = (error) => {
         console.error("SSE connection error", error);
-        // Will auto-reconnect typically
       };
     }
 
@@ -253,7 +307,6 @@ const App = () => {
               deviceId: localStorage.getItem('naino_device_uuid')
             });
 
-            // Valid key, track daily active user
             const data = response.data;
 
             // Sync premium status dynamically
@@ -287,7 +340,6 @@ const App = () => {
             }
           } catch (error) {
             console.error("Failed to verify access key:", error);
-            // If API explicitly rejects it (mismatch, revoked, or invalid)
             const isInvalidOrMismatch =
               error.message.includes('Invalid') ||
               error.message.includes('Access Denied') ||
@@ -321,14 +373,14 @@ const App = () => {
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
-    // Verify periodically every 7 minutes
-    const interval = setInterval(verifyAccessKey, 7 * 60 * 1000);
+    // Verify periodically based on dynamic checkInterval state
+    const interval = setInterval(verifyAccessKey, checkInterval);
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       clearInterval(interval);
     };
-  }, [isUnlocked]);
+  }, [isUnlocked, checkInterval]);
 
   // Fetch dynamic links on mount
   useEffect(() => {
@@ -346,6 +398,22 @@ const App = () => {
     loadDynamicLinks();
   }, []);
 
+  // Fetch dynamic global config on mount
+  useEffect(() => {
+    const loadDynamicConfig = async () => {
+      try {
+        const config = await fetchWithCache('/api/config.json', 'cache_global_config', 5 * 60 * 1000); // 5 mins cache
+        if (config) {
+          localStorage.setItem('naino_global_config', JSON.stringify(config));
+          window.dispatchEvent(new Event('globalConfigUpdated'));
+        }
+      } catch (err) {
+        console.warn("Failed to fetch dynamic config on startup:", err);
+      }
+    };
+    loadDynamicConfig();
+  }, []);
+
   const handleUnlock = (userData) => {
     localStorage.setItem('naino_access_token', userData.code);
     localStorage.setItem('naino_user_name', userData.username);
@@ -355,6 +423,32 @@ const App = () => {
     }
     setIsUnlocked(true);
   };
+
+  if (maintenance) {
+    return (
+      <div className="min-h-screen bg-[#050505] text-white flex flex-col items-center justify-center p-6 text-center">
+        {/* Golden Grid Background Overlay */}
+        <div className="fixed inset-0 z-0 pointer-events-none flex justify-center items-center opacity-20">
+          <div className="absolute inset-0 bg-golden-grid"></div>
+        </div>
+        <div className="relative z-10 max-w-md w-full bg-[#111] border border-[#FFD700]/30 rounded-3xl p-8 shadow-[0_0_50px_rgba(255,215,0,0.15)] flex flex-col items-center">
+          <div className="w-20 h-20 bg-gradient-to-br from-[#FFD700]/20 to-black rounded-full flex items-center justify-center mb-6 border border-[#FFD700]/30 shadow-[0_0_20px_rgba(255,215,0,0.2)]">
+            <span className="text-4xl animate-pulse">🛠️</span>
+          </div>
+          <h2 className="text-3xl font-black text-white font-oswald uppercase tracking-widest mb-4 drop-shadow-[0_2px_10px_rgba(255,215,0,0.3)]">
+            Under Maintenance
+          </h2>
+          <p className="text-sm text-gray-400 font-medium leading-relaxed mb-6 font-inter">
+            {maintenanceMsg}
+          </p>
+          <div className="w-full h-[1px] bg-white/10 mb-6" />
+          <p className="text-[10px] text-gray-500 uppercase tracking-widest font-bold font-mono">
+            Thank you for your patience
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   if (!isUnlocked) {
     return <LockScreen onUnlock={handleUnlock} />;

@@ -190,6 +190,79 @@ export const DownloadProvider = ({ children }) => {
     loadDownloads();
   }, []);
 
+  const savePartialProgress = async (
+    downloadKey,
+    type,
+    courseId,
+    itemId,
+    loaded,
+    total,
+    isHLS,
+    segmentsDownloaded,
+    title,
+    courseTitle,
+    chapterName,
+    url,
+    courseType
+  ) => {
+    const partialKey = `naino_offline_partial_${downloadKey}`;
+    const ext = type === 'pdf' ? '.pdf' : type === 'book' ? '.zip' : '.mp4';
+    const fileName = `${type}_${courseId}_${itemId}`.replace(/[^a-zA-Z0-9_.-]/g, '_') + ext;
+
+    try {
+      if (isCapacitor) {
+        // On Capacitor, file data is already written to the device storage directly.
+        // We only need to save the metadata.
+        const meta = {
+          key: downloadKey,
+          courseId,
+          itemId,
+          title,
+          type,
+          courseType,
+          courseTitle,
+          chapterName,
+          loaded,
+          total,
+          url,
+          currentSegment: segmentsDownloaded,
+          isHLS,
+          totalSegments: isHLS ? total : 0,
+          isCapacitorFile: true,
+          fileName
+        };
+        await set(`${partialKey}_meta`, meta);
+      } else {
+        const chunks = chunksRef.current[downloadKey];
+        if (Array.isArray(chunks) && chunks.length > 0) {
+          const partialBlob = new Blob(chunks, { type: type === 'pdf' ? 'application/pdf' : 'video/mp4' });
+          await set(partialKey, partialBlob);
+          
+          const meta = {
+            key: downloadKey,
+            courseId,
+            itemId,
+            title,
+            type,
+            courseType,
+            courseTitle,
+            chapterName,
+            loaded,
+            total,
+            url,
+            currentSegment: segmentsDownloaded,
+            isHLS,
+            totalSegments: isHLS ? total : 0
+          };
+          await set(`${partialKey}_meta`, meta);
+        }
+      }
+      console.log(`Saved partial progress for ${downloadKey}: loaded=${loaded}, total=${total}, segments=${segmentsDownloaded}`);
+    } catch (e) {
+      console.error("Failed to save partial download metadata:", e);
+    }
+  };
+
   const downloadFile = async (type, courseId, itemId, url, title, courseTitle = '', chapterName = '', isResume = false) => {
     const downloadKey = `naino_offline_${type}_${courseId}_${itemId}`;
     const partialKey = `naino_offline_partial_${downloadKey}`;
@@ -237,6 +310,8 @@ export const DownloadProvider = ({ children }) => {
     let loaded = 0;
     let total = 0;
     let startSegment = 0;
+    let segmentsDownloaded = 0;
+    let totalBytesLoaded = 0;
 
     if (isResume) {
       const meta = await get(`${partialKey}_meta`);
@@ -244,6 +319,8 @@ export const DownloadProvider = ({ children }) => {
         loaded = meta.loaded;
         total = meta.total;
         startSegment = meta.currentSegment || 0;
+        segmentsDownloaded = startSegment;
+        totalBytesLoaded = loaded;
       }
       if (!isCapacitor) {
         existingBlob = await get(partialKey);
@@ -316,7 +393,7 @@ export const DownloadProvider = ({ children }) => {
         total = resolvedUrls.length;
         const chunks = existingBlob ? [existingBlob] : [];
         chunksRef.current[downloadKey] = chunks;
-        let totalBytesLoaded = loaded;
+        totalBytesLoaded = loaded;
         let lastUpdateTime = 0;
         
         for (let i = startSegment; i < resolvedUrls.length; i++) {
@@ -343,6 +420,7 @@ export const DownloadProvider = ({ children }) => {
               chunks.push(new Uint8Array(segData));
             }
             totalBytesLoaded += segData.byteLength;
+            segmentsDownloaded = i + 1;
             
             const now = Date.now();
             // Throttle state updates to at most once per second to prevent UI lag
@@ -356,7 +434,7 @@ export const DownloadProvider = ({ children }) => {
                   total: 0, 
                   isHLS: true,
                   totalSegments: total,
-                  currentSegment: i + 1,
+                  currentSegment: segmentsDownloaded,
                   title,
                   type,
                   courseTitle,
@@ -545,11 +623,38 @@ export const DownloadProvider = ({ children }) => {
         console.log(`Download aborted for ${title}`);
       } else {
         console.error(`Failed to download ${title}:`, error);
-        showAlert(`Download failed for ${title}`, 'error');
+        showAlert(`Download paused: ${title} (Network issue)`, 'warning');
+        
+        const isHLS = url.includes('.m3u8');
+        await savePartialProgress(
+          downloadKey,
+          type,
+          courseId,
+          itemId,
+          isHLS ? totalBytesLoaded : loaded,
+          total,
+          isHLS,
+          isHLS ? segmentsDownloaded : 0,
+          title,
+          courseTitle,
+          chapterName,
+          url,
+          courseType
+        );
+        delete chunksRef.current[downloadKey];
+        
+        pausedKeysRef.current[downloadKey] = true;
+        
         setActiveDownloads(prev => {
-          const next = { ...prev };
-          delete next[downloadKey];
-          return next;
+          if (!prev[downloadKey]) return prev;
+          return {
+            ...prev,
+            [downloadKey]: { 
+              ...prev[downloadKey], 
+              status: 'paused',
+              progress: total ? ((isHLS ? segmentsDownloaded : loaded) / total) * 100 : 0
+            }
+          };
         });
       }
     } finally {
@@ -566,7 +671,6 @@ export const DownloadProvider = ({ children }) => {
 
   const pauseDownload = async (type, courseId, itemId) => {
     const downloadKey = `naino_offline_${type}_${courseId}_${itemId}`;
-    const partialKey = `naino_offline_partial_${downloadKey}`;
     const notifId = getNotificationId(downloadKey);
     await notifyCancelOrError(notifId);
     
@@ -591,49 +695,22 @@ export const DownloadProvider = ({ children }) => {
     // 3. Save current progress to IDB
     const state = activeDownloads[downloadKey];
     if (state) {
-      const ext = type === 'pdf' ? '.pdf' : type === 'book' ? '.zip' : '.mp4';
-      const fileName = `${type}_${courseId}_${itemId}`.replace(/[^a-zA-Z0-9_.-]/g, '_') + ext;
-
-      try {
-        if (isCapacitor) {
-          // On Capacitor, file data is already written to the device storage directly.
-          // We only need to save the metadata.
-          const meta = {
-            key: downloadKey, 
-            courseId, 
-            itemId, 
-            title: state.title, 
-            type: state.type, 
-            courseType: state.courseType,
-            courseTitle: state.courseTitle, 
-            chapterName: state.chapterName, 
-            loaded: state.loaded, 
-            total: state.total, 
-            url: state.url,
-            currentSegment: state.currentSegment, 
-            isHLS: state.isHLS, 
-            totalSegments: state.totalSegments,
-            isCapacitorFile: true,
-            fileName: fileName
-          };
-          await set(`${partialKey}_meta`, meta);
-        } else {
-          const chunks = chunksRef.current[downloadKey];
-          if (Array.isArray(chunks) && chunks.length > 0) {
-            const partialBlob = new Blob(chunks, { type: state.type === 'pdf' ? 'application/pdf' : 'video/mp4' });
-            await set(partialKey, partialBlob);
-            
-            const meta = {
-              key: downloadKey, courseId, itemId, title: state.title, type: state.type, courseType: state.courseType, courseTitle: state.courseTitle, chapterName: state.chapterName, loaded: state.loaded, total: state.total, url: state.url,
-              currentSegment: state.currentSegment, isHLS: state.isHLS, totalSegments: state.totalSegments
-            };
-            await set(`${partialKey}_meta`, meta);
-            delete chunksRef.current[downloadKey];
-          }
-        }
-      } catch (e) {
-        console.error("Failed to save partial download metadata:", e);
-      }
+      await savePartialProgress(
+        downloadKey,
+        type,
+        courseId,
+        itemId,
+        state.loaded,
+        state.total,
+        state.isHLS,
+        state.currentSegment,
+        state.title,
+        state.courseTitle,
+        state.chapterName,
+        state.url,
+        state.courseType
+      );
+      delete chunksRef.current[downloadKey];
     }
   };
 

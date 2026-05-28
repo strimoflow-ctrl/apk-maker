@@ -21,7 +21,16 @@ const CourseDetailScreen = () => {
   const [activeLecture, setActiveLecture] = useState(null);
   const [activeLectureIndex, setActiveLectureIndex] = useState(0);
   const [offlineVideoUrl, setOfflineVideoUrl] = useState(null);
-  
+
+  useEffect(() => {
+    return () => {
+      if (offlineVideoUrl && offlineVideoUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(offlineVideoUrl);
+        console.log("Revoked offline video blob URL:", offlineVideoUrl);
+      }
+    };
+  }, [offlineVideoUrl]);
+
   const hasAutoResumed = useRef(false);
   const activeLectureRef = useRef(null);
   const lectureListContainerRef = useRef(null);

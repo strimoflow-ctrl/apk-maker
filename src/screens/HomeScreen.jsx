@@ -11,6 +11,21 @@ import { fetchWithCache } from '../utils/api';
 
 // Active users count time-based ranges lookup
 const getActiveUsersRange = (hour) => {
+  try {
+    const cached = localStorage.getItem('naino_global_config');
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      if (Array.isArray(parsed.activeUsersRanges)) {
+        const range = parsed.activeUsersRanges.find(r => hour >= r.start && hour < r.end);
+        if (range) {
+          return { min: range.min, max: range.max };
+        }
+      }
+    }
+  } catch (e) {
+    console.warn("Failed to get dynamic active users range:", e);
+  }
+
   if (hour >= 7 && hour < 12) {
     return { min: 400, max: 600 };
   } else if (hour >= 12 && hour < 15) {
@@ -63,8 +78,17 @@ const HomeScreen = () => {
     const handleAvatarUpdate = () => {
       setAvatarUrl(localStorage.getItem('naino_user_avatar'));
     };
+    const handleConfigUpdate = () => {
+      const hour = new Date().getHours();
+      const { min, max } = getActiveUsersRange(hour);
+      setActiveUsers(getRandomInRange(min, max));
+    };
     window.addEventListener('avatarUpdated', handleAvatarUpdate);
-    return () => window.removeEventListener('avatarUpdated', handleAvatarUpdate);
+    window.addEventListener('globalConfigUpdated', handleConfigUpdate);
+    return () => {
+      window.removeEventListener('avatarUpdated', handleAvatarUpdate);
+      window.removeEventListener('globalConfigUpdated', handleConfigUpdate);
+    };
   }, []);
 
   // Synchronously load banner cache to prevent UI flashing

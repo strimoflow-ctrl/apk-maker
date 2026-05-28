@@ -133,6 +133,9 @@ const DownloadScreen = () => {
               const blob = await res.blob();
               const magicBytes = await blob.slice(0, 4).text();
               statusMap[dl.key] = magicBytes.startsWith('PK');
+              if (url && url.startsWith('blob:')) {
+                URL.revokeObjectURL(url);
+              }
             }
           } catch (e) {
             console.error("Failed to detect ZIP dynamically for key:", dl.key, e);
@@ -204,6 +207,7 @@ const DownloadScreen = () => {
 
     const url = await getOfflineFileUrl(dl.type, dl.courseId, dl.itemId);
     if (action === 'watch') {
+      if (url && url.startsWith('blob:')) URL.revokeObjectURL(url);
       const cType = dl.courseType || (dl.courseId?.startsWith('cr_') ? 'crash' : dl.courseId?.startsWith('c_') ? 'coaching' : 'course');
       const state = { 
         autoPlayLecture: dl.itemId,
@@ -229,6 +233,7 @@ const DownloadScreen = () => {
         console.error('Extract error', e); 
         alert("Failed to export ZIP file.");
       }
+      if (url && url.startsWith('blob:')) URL.revokeObjectURL(url);
     } else if (action === 'save') {
       try {
         await saveFileToDevice(url, `${dl.title}.pdf`);
@@ -244,6 +249,7 @@ const DownloadScreen = () => {
         console.error('Save error', e); 
         alert("Failed to save PDF to phone.");
       }
+      if (url && url.startsWith('blob:')) URL.revokeObjectURL(url);
     }
   };
 
