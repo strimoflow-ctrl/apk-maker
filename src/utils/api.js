@@ -117,7 +117,7 @@ export const fetchBackendAPI = async (endpoint, method = 'GET', body = null) => 
   const data = await response.json();
   
   if (!response.ok) {
-    const error = new Error(data.error || 'API Request Failed');
+    const error = new Error(data.message || data.error || 'API Request Failed');
     error.status = response.status;
     error.data = data;
     throw error;
