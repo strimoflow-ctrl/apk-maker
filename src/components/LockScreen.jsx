@@ -12,6 +12,12 @@ const LockScreen = ({ onUnlock }) => {
   const [lockTimer, setLockTimer] = useState(0);
   const inputsRef = useRef([]);
 
+  // Bot Verification States
+  const [verificationCode, setVerificationCode] = useState('');
+  const [targetTelegramId, setTargetTelegramId] = useState('');
+  const [checkLoading, setCheckLoading] = useState(false);
+  const [pollingActive, setPollingActive] = useState(false);
+
   // Username step states
   const [usernameInput, setUsernameInput] = useState('');
   const [usernameError, setUsernameError] = useState('');
@@ -62,6 +68,57 @@ const LockScreen = ({ onUnlock }) => {
       localStorage.setItem('naino_lock_attempts', attempts.toString());
     }
   };
+
+  const checkLoginStatus = async (silent = false) => {
+    const code = passcode.join('');
+    if (code.length !== 6) return;
+    
+    if (!silent) setCheckLoading(true);
+    try {
+      const currentPhoneUuid = await getDeviceUuid();
+      const response = await fetchBackendAPI('/api/keys/verify', 'POST', {
+        code: code,
+        deviceId: currentPhoneUuid
+      });
+
+      localStorage.removeItem('naino_lock_attempts');
+      const data = response.data;
+      const userData = {
+        code: code,
+        username: data.username || '',
+        isPremium: data.isPremium || false,
+        avatarUrl: data.avatarUrl || null
+      };
+
+      setPollingActive(false);
+
+      if (userData.username && userData.username !== 'Student') {
+        onUnlock(userData);
+      } else {
+        setTempUserData(userData);
+        setStep('username');
+      }
+    } catch (err) {
+      if (!silent) {
+        setError(true);
+        setErrorMessage(err.message || 'Verification pending. Please send the code to bot first.');
+      }
+    } finally {
+      if (!silent) setCheckLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    let interval;
+    if (step === 'verify_bot' && pollingActive) {
+      interval = setInterval(() => {
+        checkLoginStatus(true);
+      }, 5000);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [step, pollingActive, passcode]);
 
   const handleChange = (e, index) => {
     const value = e.target.value.replace(/[^0-9]/g, '');
@@ -147,11 +204,18 @@ const LockScreen = ({ onUnlock }) => {
               setStep('username');
             }
           } catch (apiError) {
-            setError(true);
-            setErrorMessage(apiError.message || 'Invalid access key or device mismatch.');
-            setPasscode(['', '', '', '', '', '']);
-            inputsRef.current[0]?.focus();
-            handleFailedAttempt();
+            if (apiError.data && apiError.data.error === 'DEVICE_MISMATCH') {
+              setVerificationCode(apiError.data.verificationCode);
+              setTargetTelegramId(apiError.data.telegramId);
+              setStep('verify_bot');
+              setPollingActive(true);
+            } else {
+              setError(true);
+              setErrorMessage(apiError.message || 'Invalid access key or device mismatch.');
+              setPasscode(['', '', '', '', '', '']);
+              inputsRef.current[0]?.focus();
+              handleFailedAttempt();
+            }
           }
         } catch (err) {
           console.error("Firebase Error: ", err);
@@ -312,6 +376,73 @@ const LockScreen = ({ onUnlock }) => {
                 Get Key via Telegram
               </a>
             </div>
+          </div>
+        )}
+
+        {step === 'verify_bot' && (
+          <div className="flex flex-col items-center animate-apple-slide-up text-center">
+             <div className="w-16 h-16 bg-[#24A1DE]/10 rounded-full flex items-center justify-center mx-auto mb-6 shadow-[0_0_30px_rgba(36,161,222,0.15)] animate-pulse">
+               <Bot className="text-[#24A1DE]" size={28} />
+             </div>
+             
+             <h2 className="text-2xl font-black text-white text-center font-oswald uppercase tracking-widest mb-2">
+               Device Verification
+             </h2>
+             <p className="text-xs text-gray-400 mb-6 leading-relaxed px-2">
+               Your key is active on another device. To transfer it to this phone, send the code below to our Telegram bot.
+             </p>
+
+             <div className="w-full bg-black/60 border border-[#24A1DE]/30 rounded-2xl py-5 px-6 mb-6 shadow-[inset_0_1px_1px_rgba(255,255,255,0.05)] relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-24 h-24 bg-[#24A1DE]/5 rounded-full blur-2xl pointer-events-none"></div>
+                <span className="text-[10px] font-bold font-mono text-gray-500 uppercase tracking-widest block mb-1">Send this Code</span>
+                <span className="text-4xl font-black font-mono text-[#24A1DE] tracking-[0.2em] block pl-[0.2em]">
+                  {verificationCode}
+                </span>
+             </div>
+
+             <div className="w-full bg-white/5 border border-white/5 rounded-xl p-4 mb-6 text-left">
+                <p className="text-[10px] font-bold font-mono text-gray-500 uppercase tracking-widest mb-1.5">Registered Account</p>
+                <p className="text-sm text-white font-mono break-all flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
+                  {targetTelegramId}
+                </p>
+                <p className="text-[9px] text-gray-500 font-medium mt-2">
+                  * Must be sent from this specific Telegram username/ID.
+                </p>
+             </div>
+
+             <div className="w-full flex flex-col gap-3">
+               <button 
+                 onClick={() => checkLoginStatus(false)}
+                 disabled={checkLoading}
+                 className="w-full h-12 bg-gradient-to-r from-[#24A1DE] to-[#1E88E5] hover:opacity-95 text-white font-black uppercase tracking-widest text-[11px] rounded-xl flex items-center justify-center gap-2 transition-all shadow-[0_4px_20px_rgba(36,161,222,0.2)] active:scale-95 disabled:opacity-50"
+               >
+                 {checkLoading ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle size={16} />} 
+                 Check Verification Status
+               </button>
+               
+               <a 
+                 href={`https://t.me/NainoAcademyBot?start=${verificationCode}`} 
+                 target="_blank" 
+                 rel="noreferrer"
+                 className="w-full h-12 bg-white/5 hover:bg-white/10 text-gray-300 border border-white/10 hover:border-white/20 font-black uppercase tracking-widest text-[11px] rounded-xl flex items-center justify-center gap-2 transition-all"
+               >
+                 <Send size={14} /> Open Telegram Bot
+               </a>
+
+               <button 
+                 onClick={() => {
+                   setStep('passcode');
+                   setPasscode(['', '', '', '', '', '']);
+                   setPollingActive(false);
+                   setError(false);
+                   setErrorMessage('');
+                 }}
+                 className="w-full h-10 bg-transparent hover:bg-white/5 text-gray-500 hover:text-gray-300 font-bold uppercase tracking-widest text-[10px] rounded-xl transition-all"
+               >
+                 Cancel
+               </button>
+             </div>
           </div>
         )}
 
