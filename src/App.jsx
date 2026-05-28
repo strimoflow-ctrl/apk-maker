@@ -294,8 +294,8 @@ const App = () => {
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
-    // Verify periodically every 30 seconds
-    const interval = setInterval(verifyAccessKey, 30000);
+    // Verify periodically every 60 seconds
+    const interval = setInterval(verifyAccessKey, 60000);
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
