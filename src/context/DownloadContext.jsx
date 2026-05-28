@@ -4,6 +4,7 @@ import { useAlert } from './AlertContext';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { KeepAwake } from '@capacitor-community/keep-awake';
 import { Capacitor, CapacitorHttp } from '@capacitor/core';
+import { Filesystem, Directory } from '@capacitor/filesystem';
 
 const isCapacitor = Capacitor.isNativePlatform();
 
@@ -85,6 +86,16 @@ const notifyCancelOrError = async (id) => {
   } catch (e) {
     console.error("Local Notification Error:", e);
   }
+};
+
+const arrayBufferToBase64 = (uint8Array) => {
+  let binary = '';
+  const len = uint8Array.byteLength;
+  for (let i = 0; i < len; i += 1024) {
+    const chunk = uint8Array.subarray(i, Math.min(i + 1024, len));
+    binary += String.fromCharCode.apply(null, chunk);
+  }
+  return window.btoa(binary);
 };
 
 const DownloadContext = createContext();
@@ -244,6 +255,34 @@ export const DownloadProvider = ({ children }) => {
       [downloadKey]: { progress: total ? (loaded / total) * 100 : 0, loaded, total, title, type, courseType, courseTitle, chapterName, courseId, itemId, url, status: 'downloading' }
     }));
 
+    const ext = type === 'pdf' ? '.pdf' : type === 'book' ? '.zip' : '.mp4';
+    const fileName = `${type}_${courseId}_${itemId}`.replace(/[^a-zA-Z0-9_.-]/g, '_') + ext;
+    let fileUri = null;
+
+    if (isCapacitor && !isResume) {
+      try {
+        const writeResult = await Filesystem.writeFile({
+          path: fileName,
+          data: '', // empty file
+          directory: Directory.Data,
+          recursive: true
+        });
+        fileUri = writeResult.uri;
+      } catch (e) {
+        console.error("Failed to pre-create file on filesystem:", e);
+      }
+    } else if (isCapacitor && isResume) {
+      try {
+        const uriResult = await Filesystem.getUri({
+          path: fileName,
+          directory: Directory.Data
+        });
+        fileUri = uriResult.uri;
+      } catch (e) {
+        console.warn("Failed to get file URI during resume:", e);
+      }
+    }
+
     const notifId = getNotificationId(downloadKey);
     await notifyStart(notifId, title);
     let lastPercentNotified = 0;
@@ -284,7 +323,21 @@ export const DownloadProvider = ({ children }) => {
             const segRes = await fetch(segUrl, { signal: controller.signal });
             if (!segRes.ok) throw new Error(`Failed to fetch segment: ${segRes.status}`);
             const segData = await segRes.arrayBuffer();
-            chunks.push(new Uint8Array(segData));
+            
+            if (isCapacitor && fileUri) {
+              try {
+                const base64Data = arrayBufferToBase64(new Uint8Array(segData));
+                await Filesystem.appendFile({
+                  path: fileName,
+                  data: base64Data,
+                  directory: Directory.Data
+                });
+              } catch (fsErr) {
+                console.error("Failed to append segment to filesystem:", fsErr);
+              }
+            } else {
+              chunks.push(new Uint8Array(segData));
+            }
             totalBytesLoaded += segData.byteLength;
             
             const now = Date.now();
@@ -326,12 +379,17 @@ export const DownloadProvider = ({ children }) => {
           }
         }
         
-        const finalBlob = new Blob(chunks, { type: 'video/mp2t' });
-        
-        await set(downloadKey, finalBlob);
+        let finalSize = totalBytesLoaded;
+        if (!isCapacitor) {
+          const finalBlob = new Blob(chunks, { type: 'video/mp2t' });
+          await set(downloadKey, finalBlob);
+          finalSize = finalBlob.size;
+        } else {
+          await set(downloadKey, { isFilesystem: true, fileName: fileName });
+        }
         
         const meta = {
-          key: downloadKey, courseId, itemId, title, type, courseTitle, chapterName, size: finalBlob.size, timestamp: new Date().getTime(), isHLS: true
+          key: downloadKey, courseId, itemId, title, type, courseTitle, chapterName, size: finalSize, timestamp: new Date().getTime(), isHLS: true
         };
         await set(`${downloadKey}_meta`, meta);
   
@@ -394,7 +452,20 @@ export const DownloadProvider = ({ children }) => {
           
           if (done) break;
           
-          chunks.push(value);
+          if (isCapacitor && fileUri) {
+            try {
+              const base64Data = arrayBufferToBase64(value);
+              await Filesystem.appendFile({
+                path: fileName,
+                data: base64Data,
+                directory: Directory.Data
+              });
+            } catch (fsErr) {
+              console.error("Failed to append chunk to filesystem:", fsErr);
+            }
+          } else {
+            chunks.push(value);
+          }
           loaded += value.length;
           
           const currentPercent = total ? (loaded / total) * 100 : 0;
@@ -422,25 +493,34 @@ export const DownloadProvider = ({ children }) => {
           }
         }
   
-        const contentType = response.headers.get('content-type') || (type === 'pdf' ? 'application/pdf' : 'video/mp4');
-        const finalBlob = new Blob(chunks, { type: contentType });
-        
-        await set(downloadKey, finalBlob);
-        
+        let finalSize = loaded;
         let isZip = false;
-        if (type === 'book' || type === 'pdf') {
-          try {
-            const magicBytes = await finalBlob.slice(0, 4).text();
-            if (magicBytes.startsWith('PK')) {
-              isZip = true;
+        if (!isCapacitor) {
+          const contentType = response.headers.get('content-type') || (type === 'pdf' ? 'application/pdf' : 'video/mp4');
+          const finalBlob = new Blob(chunks, { type: contentType });
+          
+          await set(downloadKey, finalBlob);
+          finalSize = finalBlob.size;
+          
+          if (type === 'book' || type === 'pdf') {
+            try {
+              const magicBytes = await finalBlob.slice(0, 4).text();
+              if (magicBytes.startsWith('PK')) {
+                isZip = true;
+              }
+            } catch (e) {
+              console.error("Failed to detect ZIP magic bytes:", e);
             }
-          } catch (e) {
-            console.error("Failed to detect ZIP magic bytes:", e);
+          }
+        } else {
+          await set(downloadKey, { isFilesystem: true, fileName: fileName });
+          if (type === 'book') {
+            isZip = true;
           }
         }
         
         const meta = {
-          key: downloadKey, courseId, itemId, title, type, courseType, courseTitle, chapterName, size: finalBlob.size, timestamp: new Date().getTime(), isZip
+          key: downloadKey, courseId, itemId, title, type, courseType, courseTitle, chapterName, size: finalSize, timestamp: new Date().getTime(), isZip
         };
         await set(`${downloadKey}_meta`, meta);
   
@@ -553,9 +633,17 @@ export const DownloadProvider = ({ children }) => {
   const getOfflineFileUrl = async (type, courseId, itemId) => {
     try {
       const downloadKey = `naino_offline_${type}_${courseId}_${itemId}`;
-      const blob = await get(downloadKey);
-      if (blob) {
-        return URL.createObjectURL(blob);
+      const data = await get(downloadKey);
+      if (data) {
+        if (isCapacitor && data.isFilesystem) {
+          const uriResult = await Filesystem.getUri({
+            path: data.fileName,
+            directory: Directory.Data
+          });
+          return Capacitor.convertFileSrc(uriResult.uri);
+        } else if (data instanceof Blob) {
+          return URL.createObjectURL(data);
+        }
       }
     } catch (e) {
       console.error(e);
@@ -565,6 +653,13 @@ export const DownloadProvider = ({ children }) => {
 
   const deleteDownload = async (key) => {
     try {
+      const data = await get(key);
+      if (isCapacitor && data && data.isFilesystem) {
+        await Filesystem.deleteFile({
+          path: data.fileName,
+          directory: Directory.Data
+        }).catch(err => console.warn("Failed to delete local file:", err));
+      }
       await del(key);
       await del(`${key}_meta`);
       setCompletedDownloads(prev => prev.filter(d => d.key !== key));
