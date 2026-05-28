@@ -409,7 +409,9 @@ export const DownloadProvider = ({ children }) => {
             proxyUrl = url.replace(/^https?:\/\/filestreambot-1-jx2x\.onrender\.com/, '');
           }
         } else {
-          if (url.startsWith('http://filestreambot-1-jx2x.onrender.com')) {
+          if (url.startsWith('/dl/')) {
+            proxyUrl = `https://filestreambot-1-jx2x.onrender.com${url}`;
+          } else if (url.startsWith('http://') && !url.includes('localhost')) {
             proxyUrl = url.replace('http://', 'https://');
           }
         }

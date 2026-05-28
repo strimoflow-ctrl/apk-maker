@@ -21,6 +21,18 @@ const VideoPlayer = ({ videoUrl, title, courseId, lectureId, courseTitle, onVide
   const [showSpeedMenu, setShowSpeedMenu] = useState(false);
   const [isLandscape, setIsLandscape] = useState(false);
 
+  const getCleanVideoUrl = (url) => {
+    if (!url) return '';
+    // Handle relative /dl/ paths for Capacitor
+    if (url.startsWith('/dl/') && Capacitor.isNativePlatform()) {
+      return `https://filestreambot-1-jx2x.onrender.com${url}`;
+    }
+    if (url.startsWith('http://') && !url.includes('localhost')) {
+      return url.replace('http://', 'https://');
+    }
+    return url;
+  };
+
   useEffect(() => {
     const checkOrientation = () => {
       setIsLandscape(window.innerWidth > window.innerHeight);
@@ -284,7 +296,7 @@ const VideoPlayer = ({ videoUrl, title, courseId, lectureId, courseTitle, onVide
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <video
           ref={videoRef}
-          src={videoUrl || ''}
+          src={getCleanVideoUrl(videoUrl)}
           className={`w-full h-full pointer-events-auto transition-transform duration-300 ${isZoomed ? 'object-cover' : 'object-contain'}`}
           onTimeUpdate={handleTimeUpdate}
           onLoadedMetadata={handleLoadedMetadata}
