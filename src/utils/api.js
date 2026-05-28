@@ -53,9 +53,17 @@ export const fetchWithCache = async (url, cacheKey, ttlMs = 30 * 1000) => {
   }
 
   const resolvedUrl = resolveApiUrl(url);
+  
+  // Set fetch timeout based on whether cache exists
+  const hasCache = typeof localStorage !== 'undefined' && !!localStorage.getItem(`offline_api_${cacheKey}`);
+  const timeoutMs = hasCache ? 1500 : 10000; // 1.5s timeout if cache exists, 10s otherwise
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
   try {
-    // 3. Try fetching from network
-    const response = await fetch(resolvedUrl);
+    // 3. Try fetching from network with abort signal
+    const response = await fetch(resolvedUrl, { signal: controller.signal });
+    clearTimeout(timeoutId);
     if (!response.ok) {
       throw new Error(`Failed to fetch from ${url}`);
     }
@@ -82,8 +90,9 @@ export const fetchWithCache = async (url, cacheKey, ttlMs = 30 * 1000) => {
     
     return data;
   } catch (err) {
-    console.warn(`Network request failed for ${url}, trying offline cache...`, err);
-    // 4. Fallback to localStorage if network fails
+    clearTimeout(timeoutId);
+    console.warn(`Network request failed or timed out for ${url}, trying offline cache...`, err);
+    // 4. Fallback to localStorage if network fails or times out
     try {
       const cachedRaw = localStorage.getItem(`offline_api_${cacheKey}`);
       if (cachedRaw) {
