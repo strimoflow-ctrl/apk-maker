@@ -233,7 +233,7 @@ const App = () => {
     };
   }, []);
 
-  // Startup Verification
+  // Startup, Periodic & Visibility Verification
   useEffect(() => {
     const verifyAccessKey = async () => {
       if (isUnlocked) {
@@ -259,10 +259,19 @@ const App = () => {
               }).catch(err => console.error("Failed to track active user:", err));
             }
           } catch (error) {
-            console.error("Failed to verify access key on startup:", error);
-            // If API explicitly rejects it (404/403)
-            if (error.message.includes('Invalid') || error.message.includes('Access Denied')) {
-              console.warn("Access Key has been revoked or deleted. Logging out.");
+            console.error("Failed to verify access key:", error);
+            // If API explicitly rejects it (mismatch, revoked, or invalid)
+            const isInvalidOrMismatch = 
+              error.message.includes('Invalid') || 
+              error.message.includes('Access Denied') || 
+              error.message.includes('bound') || 
+              error.message.includes('in use') || 
+              error.message.includes('device') ||
+              error.status === 403 || 
+              error.status === 404;
+
+            if (isInvalidOrMismatch) {
+              console.warn("Access Key has been revoked, deleted or used on another device. Logging out.");
               localStorage.removeItem('naino_access_token');
               localStorage.removeItem('naino_user_name');
               localStorage.removeItem('naino_user_avatar');
@@ -276,6 +285,22 @@ const App = () => {
     };
 
     verifyAccessKey();
+
+    // Verify when returning to the app from background
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        verifyAccessKey();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    // Verify periodically every 30 seconds
+    const interval = setInterval(verifyAccessKey, 30000);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      clearInterval(interval);
+    };
   }, [isUnlocked]);
 
   const handleUnlock = (userData) => {
