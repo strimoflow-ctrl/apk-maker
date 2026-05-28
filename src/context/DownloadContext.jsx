@@ -3,7 +3,7 @@ import { set, get, keys, del } from 'idb-keyval';
 import { useAlert } from './AlertContext';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { KeepAwake } from '@capacitor-community/keep-awake';
-import { Capacitor } from '@capacitor/core';
+import { Capacitor, CapacitorHttp } from '@capacitor/core';
 
 const isCapacitor = Capacitor.isNativePlatform();
 
@@ -357,6 +357,25 @@ export const DownloadProvider = ({ children }) => {
         }
         
         const headers = isResume && loaded > 0 ? { 'Range': `bytes=${loaded}-` } : {};
+        
+        // On native platforms (Capacitor), standard fetch calls are subject to CORS restrictions
+        // that hide the 'Content-Length' header unless exposed by the server. We bypass this
+        // by making a native HEAD request to get the exact file size.
+        if (isCapacitor && !total) {
+          try {
+            const headRes = await CapacitorHttp.request({
+              method: 'HEAD',
+              url: proxyUrl
+            });
+            const len = headRes.headers?.['content-length'] || headRes.headers?.['Content-Length'];
+            if (len) {
+              total = parseInt(len, 10);
+            }
+          } catch (e) {
+            console.warn("Native HEAD request failed to get content length:", e);
+          }
+        }
+
         const response = await fetch(proxyUrl, { signal: controller.signal, headers });
         
         if (!response.ok && response.status !== 206) throw new Error(`HTTP error! status: ${response.status}`);

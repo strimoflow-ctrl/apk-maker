@@ -79,6 +79,14 @@ const AccountScreen = () => {
             pendingRequest: data.pendingRequest || null
           });
 
+          // Sync premium status dynamically from database updates
+          const serverIsPremium = data.isPremium || false;
+          if (serverIsPremium !== isPremium) {
+            setIsPremium(serverIsPremium);
+            localStorage.setItem('naino_premium_member', String(serverIsPremium));
+            window.dispatchEvent(new Event('premiumStatusChanged'));
+          }
+
           const pending = data.pendingRequest;
           if (pending) {
             const statusVal = pending.status?.trim().toLowerCase();
@@ -226,10 +234,11 @@ const AccountScreen = () => {
   const handleNameSave = async () => {
     if (!newNameInput.trim()) return;
     setIsSavingName(true);
+    const deviceId = localStorage.getItem('naino_device_uuid');
     try {
       const response = await fetchBackendAPI('/api/keys/verify', 'POST', {
         code: secretKey,
-        deviceId: 'NameUpdate'
+        deviceId: deviceId
       });
       const data = response.data;
       let changeCount = data.nameChangeCount || 0;
@@ -248,7 +257,7 @@ const AccountScreen = () => {
 
       await fetchBackendAPI('/api/keys/update', 'POST', {
          code: secretKey,
-         deviceId: data.deviceId || localStorage.getItem('naino_device_uuid'),
+         deviceId: deviceId,
          updates: {
            username: newNameInput.trim(),
            nameChangeCount: changeCount + 1,
@@ -694,7 +703,7 @@ const AccountScreen = () => {
 
       {/* Name Edit Modal */}
       {isNameModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-apple-fade-in">
+        <div className="fixed inset-0 z-[100] flex items-start md:items-center justify-center p-4 pt-20 md:pt-4 bg-black/80 backdrop-blur-sm animate-apple-fade-in">
           <div className="bg-[#111] border border-white/10 rounded-2xl p-6 w-full max-w-sm shadow-2xl animate-apple-slide-up">
             <h3 className="text-xl font-bold text-white font-oswald uppercase tracking-wide mb-4">Edit Profile Name</h3>
             <p className="text-gray-400 text-xs mb-4">You can change your name up to 5 times every 30 days.</p>

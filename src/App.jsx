@@ -170,6 +170,14 @@ const App = () => {
         try {
           const payload = JSON.parse(event.data);
           if (payload.type === 'update' && payload.data) {
+            // Sync premium status dynamically
+            const serverIsPremium = payload.data.isPremium || false;
+            const localIsPremium = localStorage.getItem('naino_premium_member') === 'true';
+            if (serverIsPremium !== localIsPremium) {
+              localStorage.setItem('naino_premium_member', String(serverIsPremium));
+              window.dispatchEvent(new Event('premiumStatusChanged'));
+            }
+
             const pending = payload.data.pendingRequest;
             if (pending) {
               const lastStatus = sessionStorage.getItem('naino_last_pending_status');
@@ -247,6 +255,15 @@ const App = () => {
 
             // Valid key, track daily active user
             const data = response.data;
+
+            // Sync premium status dynamically
+            const serverIsPremium = data.isPremium || false;
+            const localIsPremium = localStorage.getItem('naino_premium_member') === 'true';
+            if (serverIsPremium !== localIsPremium) {
+              localStorage.setItem('naino_premium_member', String(serverIsPremium));
+              window.dispatchEvent(new Event('premiumStatusChanged'));
+            }
+
             const now = new Date();
             const lastActiveDate = data.lastActiveAt ? new Date(data.lastActiveAt) : new Date(0);
 
