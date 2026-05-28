@@ -33,6 +33,16 @@ const VideoPlayer = ({ videoUrl, title, courseId, lectureId, courseTitle, onVide
     return url;
   };
 
+  const getYouTubeId = (url) => {
+    if (!url) return null;
+    if (url.length === 11 && /^[a-zA-Z0-9_-]{11}$/.test(url)) {
+      return url;
+    }
+    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+    const match = url.match(regExp);
+    return (match && match[2].length === 11) ? match[2] : null;
+  };
+
   useEffect(() => {
     const checkOrientation = () => {
       setIsLandscape(window.innerWidth > window.innerHeight);
@@ -283,6 +293,24 @@ const VideoPlayer = ({ videoUrl, title, courseId, lectureId, courseTitle, onVide
   };
 
   const shouldOpenUpward = isFullscreen || isLandscape;
+
+  const youtubeId = getYouTubeId(videoUrl);
+
+  if (youtubeId) {
+    return (
+      <div
+        ref={containerRef}
+        className="relative w-full h-full bg-black flex items-center justify-center overflow-hidden"
+      >
+        <iframe
+          src={`https://www.youtube.com/embed/${youtubeId}?autoplay=1&rel=0&modestbranding=1&playsinline=1`}
+          className="w-full h-full border-0 absolute inset-0"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+          allowFullScreen
+        />
+      </div>
+    );
+  }
 
   return (
     <div
