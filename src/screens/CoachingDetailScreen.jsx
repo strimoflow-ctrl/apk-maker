@@ -668,23 +668,10 @@ const CoachingDetailScreen = () => {
                       <button
                         onClick={async () => {
                           const offlinePdf = await getOfflineFileUrl('pdf', coachingId, lecture.name);
-                          const returnState = { 
-                            autoPlayLecture: lecture.name,
-                            coachingContext: {
-                              batchIndex: activeBatchIndex,
-                              subjectIndex: activeSubjectIndex,
-                              chapterName: selectedChapter?.chapter || selectedChapter?.name
-                            }
-                          };
-                          // Update current history entry so it has the state when we come back
-                          navigate(location.pathname, { replace: true, state: { ...location.state, ...returnState } });
-                          
-                          // Navigate to PDF
                           navigate('/pdf', { 
                             state: { 
                               file: offlinePdf || lecture.notes, 
-                              title: `${lecture.name} Notes`,
-                              ...returnState
+                              title: `${lecture.name} Notes`
                             } 
                           });
                         }}

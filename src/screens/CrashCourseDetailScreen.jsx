@@ -617,16 +617,7 @@ const CrashCourseDetailScreen = () => {
                       <button
                         onClick={async () => {
                           const offlinePdf = await getOfflineFileUrl('pdf', courseId, lecture.name);
-                          const returnState = { 
-                            autoPlayLecture: lecture.name,
-                            coachingContext: {
-                              batchIndex: activeBatchIndex,
-                              subjectIndex: activeSubjectIndex,
-                              chapterName: selectedChapter?.chapter || selectedChapter?.name
-                            }
-                          };
-                          navigate(location.pathname, { replace: true, state: { ...location.state, ...returnState } });
-                          navigate('/pdf', { state: { file: offlinePdf || lecture.notes, title: `${lecture.name} Notes`, ...returnState } });
+                          navigate('/pdf', { state: { file: offlinePdf || lecture.notes, title: `${lecture.name} Notes` } });
                         }}
                         className="shrink-0 px-4 py-1.5 rounded text-xs font-bold border border-[#FFD700] text-[#FFD700] hover:bg-[#FFD700]/10 transition-colors flex items-center gap-1 ml-auto"
                       >

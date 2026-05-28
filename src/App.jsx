@@ -265,15 +265,25 @@ const App = () => {
             }
 
             const now = new Date();
-            const lastActiveDate = data.lastActiveAt ? new Date(data.lastActiveAt) : new Date(0);
+            const todayStr = now.toDateString();
+            const localLastActiveDay = localStorage.getItem('naino_local_last_active_day');
 
-            // Only update if they haven't been active today
-            if (lastActiveDate.toDateString() !== now.toDateString()) {
-              fetchBackendAPI('/api/keys/update', 'POST', {
-                code: token,
-                deviceId: data.deviceId || localStorage.getItem('naino_device_uuid'),
-                updates: { lastActiveAt: now.toISOString() }
-              }).catch(err => console.error("Failed to track active user:", err));
+            // Only update if they haven't been active today locally and on server
+            if (localLastActiveDay !== todayStr) {
+              const lastActiveDate = data.lastActiveAt ? new Date(data.lastActiveAt) : new Date(0);
+              if (lastActiveDate.toDateString() !== todayStr) {
+                fetchBackendAPI('/api/keys/update', 'POST', {
+                  code: token,
+                  deviceId: data.deviceId || localStorage.getItem('naino_device_uuid'),
+                  updates: { lastActiveAt: now.toISOString() }
+                })
+                .then(() => {
+                  localStorage.setItem('naino_local_last_active_day', todayStr);
+                })
+                .catch(err => console.error("Failed to track active user:", err));
+              } else {
+                localStorage.setItem('naino_local_last_active_day', todayStr);
+              }
             }
           } catch (error) {
             console.error("Failed to verify access key:", error);
@@ -311,8 +321,8 @@ const App = () => {
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
-    // Verify periodically every 60 seconds
-    const interval = setInterval(verifyAccessKey, 60000);
+    // Verify periodically every 7 minutes
+    const interval = setInterval(verifyAccessKey, 7 * 60 * 1000);
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);

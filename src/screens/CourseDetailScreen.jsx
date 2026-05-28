@@ -93,7 +93,35 @@ const CourseDetailScreen = () => {
   useEffect(() => {
     if (courseData && location.state?.autoPlayLecture && !selectedChapter) {
       const lectureId = location.state.autoPlayLecture;
-      // Find chapter containing lectureId
+      const ctx = location.state.coachingContext;
+
+      // Case 1: We have coachingContext containing the chapterName
+      if (ctx && ctx.chapterName) {
+        for (const subject of courseData.subjects || []) {
+          const chapter = (subject.chapters || []).find(c => c.chapter === ctx.chapterName || c.name === ctx.chapterName);
+          if (chapter) {
+            const lIndex = (chapter.lectures || []).findIndex(l => l.name === lectureId);
+            if (lIndex !== -1) {
+              setSelectedChapter(chapter);
+              setActiveLecture(chapter.lectures[lIndex]);
+              setActiveLectureIndex(lIndex);
+              
+              getOfflineFileUrl('video', courseId, lectureId).then(offlineUrl => {
+                setOfflineVideoUrl(offlineUrl);
+              });
+              
+              const cleanState = { ...location.state };
+              delete cleanState.autoPlayLecture;
+              delete cleanState.coachingContext;
+              navigate(location.pathname, { replace: true, state: cleanState });
+              navigate(location.pathname + "?chapter=active", { replace: false, state: cleanState });
+              return;
+            }
+          }
+        }
+      }
+
+      // Case 2: Flat fallback search
       for (const subject of courseData.subjects || []) {
         for (const chapter of subject.chapters || []) {
           const lIndex = (chapter.lectures || []).findIndex(l => l.name === lectureId);
@@ -102,14 +130,13 @@ const CourseDetailScreen = () => {
             setActiveLecture(chapter.lectures[lIndex]);
             setActiveLectureIndex(lIndex);
             
-            // Check offline URL
             getOfflineFileUrl('video', courseId, lectureId).then(offlineUrl => {
               setOfflineVideoUrl(offlineUrl);
             });
             
-            // Clear autoPlayLecture from state to prevent loop on remount
             const cleanState = { ...location.state };
             delete cleanState.autoPlayLecture;
+            delete cleanState.coachingContext;
             navigate(location.pathname, { replace: true, state: cleanState });
             navigate(location.pathname + "?chapter=active", { replace: false, state: cleanState });
             return;
@@ -330,6 +357,9 @@ const CourseDetailScreen = () => {
             courseTitle={course?.title}
             courseId={courseId}
             lectureId={activeLecture.name}
+            coachingContext={selectedChapter ? {
+              chapterName: selectedChapter.chapter || selectedChapter.name
+            } : null}
             onVideoEnd={handleNextLecture}
             onNext={hasNext ? handleNextLecture : null}
             onPrevious={hasPrev ? handlePrevLecture : null}
@@ -386,7 +416,10 @@ const CourseDetailScreen = () => {
                         courseId: courseId, 
                         courseTitle: course?.title, 
                         lectureId: lecture.name, 
-                        lectureTitle: lecture.name 
+                        lectureTitle: lecture.name,
+                        coachingContext: {
+                          chapterName: selectedChapter?.chapter || selectedChapter?.name
+                        }
                       }} 
                     />
                   </div>
@@ -434,16 +467,10 @@ const CourseDetailScreen = () => {
                       <button
                         onClick={async () => {
                           const offlinePdf = await getOfflineFileUrl('pdf', courseId, lecture.name);
-                          const returnState = { autoPlayLecture: lecture.name };
-                          
-                          // Update current history entry
-                          navigate(location.pathname, { replace: true, state: { ...location.state, ...returnState } });
-
                           navigate('/pdf', { 
                             state: { 
                               file: offlinePdf || lecture.notes, 
-                              title: `${lecture.name} Notes`,
-                              ...returnState
+                              title: `${lecture.name} Notes`
                             } 
                           });
                         }}
