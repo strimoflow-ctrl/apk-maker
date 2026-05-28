@@ -71,7 +71,7 @@ const saveFileToDevice = async (url, fileName) => {
 
 const ConfirmModal = ({ isOpen, title, message, onConfirm, onCancel }) => {
   if (!isOpen) return null;
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-apple-fade-in">
       <div className="bg-[#111] border border-white/10 rounded-2xl p-6 w-full max-w-sm shadow-2xl animate-apple-slide-up">
         <div className="flex items-center gap-3 mb-4">
@@ -98,7 +98,8 @@ const ConfirmModal = ({ isOpen, title, message, onConfirm, onCancel }) => {
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

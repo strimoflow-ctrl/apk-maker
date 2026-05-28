@@ -108,6 +108,7 @@ export const DownloadProvider = ({ children }) => {
   const abortControllers = useRef({});
   const chunksRef = useRef({}); // Store active chunks in memory to save on pause
   const { showAlert } = useAlert();
+  const pausedKeysRef = useRef({});
 
   // Create silent notification channel on mount and request permissions
   useEffect(() => {
@@ -230,6 +231,7 @@ export const DownloadProvider = ({ children }) => {
 
     const controller = new AbortController();
     abortControllers.current[downloadKey] = controller;
+    pausedKeysRef.current[downloadKey] = false;
 
     let existingBlob = null;
     let loaded = 0;
@@ -237,12 +239,14 @@ export const DownloadProvider = ({ children }) => {
     let startSegment = 0;
 
     if (isResume) {
-      existingBlob = await get(partialKey);
       const meta = await get(`${partialKey}_meta`);
-      if (existingBlob && meta) {
+      if (meta) {
         loaded = meta.loaded;
         total = meta.total;
         startSegment = meta.currentSegment || 0;
+      }
+      if (!isCapacitor) {
+        existingBlob = await get(partialKey);
       }
     } else {
       // Clear any partials if starting fresh
@@ -550,8 +554,9 @@ export const DownloadProvider = ({ children }) => {
       }
     } finally {
       delete abortControllers.current[downloadKey];
+      const isPaused = pausedKeysRef.current[downloadKey];
       setActiveDownloads(prev => {
-        if (!prev[downloadKey] || prev[downloadKey].status === 'paused') return prev;
+        if (isPaused || !prev[downloadKey] || prev[downloadKey].status === 'paused') return prev;
         const next = { ...prev };
         delete next[downloadKey];
         return next;
@@ -565,8 +570,10 @@ export const DownloadProvider = ({ children }) => {
     const notifId = getNotificationId(downloadKey);
     await notifyCancelOrError(notifId);
     
+    // Mark as paused synchronously to prevent deletion in finally block
+    pausedKeysRef.current[downloadKey] = true;
+
     // 1. Mark as paused in state FIRST
-    // This prevents the finally block in downloadFile from deleting the entry
     setActiveDownloads(prev => {
       if (!prev[downloadKey]) return prev;
       return {
@@ -583,21 +590,49 @@ export const DownloadProvider = ({ children }) => {
 
     // 3. Save current progress to IDB
     const state = activeDownloads[downloadKey];
-    const chunks = chunksRef.current[downloadKey];
-    
-    if (state && Array.isArray(chunks) && chunks.length > 0) {
+    if (state) {
+      const ext = type === 'pdf' ? '.pdf' : type === 'book' ? '.zip' : '.mp4';
+      const fileName = `${type}_${courseId}_${itemId}`.replace(/[^a-zA-Z0-9_.-]/g, '_') + ext;
+
       try {
-        const partialBlob = new Blob(chunks, { type: state.type === 'pdf' ? 'application/pdf' : 'video/mp4' });
-        await set(partialKey, partialBlob);
-        
-        const meta = {
-          key: downloadKey, courseId, itemId, title: state.title, type: state.type, courseTitle: state.courseTitle, chapterName: state.chapterName, loaded: state.loaded, total: state.total, url: state.url,
-          currentSegment: state.currentSegment, isHLS: state.isHLS, totalSegments: state.totalSegments
-        };
-        await set(`${partialKey}_meta`, meta);
-        delete chunksRef.current[downloadKey];
+        if (isCapacitor) {
+          // On Capacitor, file data is already written to the device storage directly.
+          // We only need to save the metadata.
+          const meta = {
+            key: downloadKey, 
+            courseId, 
+            itemId, 
+            title: state.title, 
+            type: state.type, 
+            courseType: state.courseType,
+            courseTitle: state.courseTitle, 
+            chapterName: state.chapterName, 
+            loaded: state.loaded, 
+            total: state.total, 
+            url: state.url,
+            currentSegment: state.currentSegment, 
+            isHLS: state.isHLS, 
+            totalSegments: state.totalSegments,
+            isCapacitorFile: true,
+            fileName: fileName
+          };
+          await set(`${partialKey}_meta`, meta);
+        } else {
+          const chunks = chunksRef.current[downloadKey];
+          if (Array.isArray(chunks) && chunks.length > 0) {
+            const partialBlob = new Blob(chunks, { type: state.type === 'pdf' ? 'application/pdf' : 'video/mp4' });
+            await set(partialKey, partialBlob);
+            
+            const meta = {
+              key: downloadKey, courseId, itemId, title: state.title, type: state.type, courseType: state.courseType, courseTitle: state.courseTitle, chapterName: state.chapterName, loaded: state.loaded, total: state.total, url: state.url,
+              currentSegment: state.currentSegment, isHLS: state.isHLS, totalSegments: state.totalSegments
+            };
+            await set(`${partialKey}_meta`, meta);
+            delete chunksRef.current[downloadKey];
+          }
+        }
       } catch (e) {
-        console.error("Failed to save partial download", e);
+        console.error("Failed to save partial download metadata:", e);
       }
     }
   };
