@@ -135,3 +135,35 @@ export const fetchBackendAPI = async (endpoint, method = 'GET', body = null) => 
   return data;
 };
 
+// Get dynamic link from localStorage
+export const getDynamicLink = (key, defaultLink) => {
+  try {
+    const raw = localStorage.getItem('naino_dynamic_links');
+    if (raw) {
+      const links = JSON.parse(raw);
+      if (links[key] && links[key].link) {
+        return links[key].link;
+      }
+    }
+  } catch (e) {
+    console.warn("Failed to get dynamic link for key:", key, e);
+  }
+  return defaultLink;
+};
+
+// Get dynamic title from localStorage
+export const getDynamicTitle = (key, defaultTitle) => {
+  try {
+    const raw = localStorage.getItem('naino_dynamic_links');
+    if (raw) {
+      const links = JSON.parse(raw);
+      if (links[key] && links[key].title) {
+        return links[key].title;
+      }
+    }
+  } catch (e) {
+    console.warn("Failed to get dynamic title for key:", key, e);
+  }
+  return defaultTitle;
+};
+

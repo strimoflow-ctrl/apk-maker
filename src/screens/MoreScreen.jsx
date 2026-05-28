@@ -1,21 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { fetchBackendAPI } from '../utils/api';
+import { fetchBackendAPI, getDynamicLink, getDynamicTitle } from '../utils/api';
 import { useAlert } from '../context/AlertContext';
-import { 
-  User, Info, Settings, LogOut, Send, MessageSquare, Download, Crown, ChevronRight, BookOpen, Star 
+import {
+  User, Info, Settings, LogOut, Send, MessageSquare, Download, Crown, ChevronRight, BookOpen, Star
 } from 'lucide-react';
 import ConfirmModal from '../components/ConfirmModal';
 
 const MoreScreen = () => {
   const navigate = useNavigate();
   const { showAlert } = useAlert();
-  
+
   const [username, setUsername] = useState(localStorage.getItem('naino_user_name') || 'Student');
   const [avatarUrl, setAvatarUrl] = useState(localStorage.getItem('naino_user_avatar') || null);
   const [isPremium, setIsPremium] = useState(localStorage.getItem('naino_premium_member') === 'true');
   const [secretKey, setSecretKey] = useState(localStorage.getItem('naino_access_token') || 'XXXXXX');
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
+
+  const [linksVersion, setLinksVersion] = useState(0);
 
   useEffect(() => {
     const handleAvatarUpdate = () => {
@@ -24,11 +26,16 @@ const MoreScreen = () => {
     const handlePremiumUpdate = () => {
       setIsPremium(localStorage.getItem('naino_premium_member') === 'true');
     };
+    const handleLinksUpdate = () => {
+      setLinksVersion(prev => prev + 1);
+    };
     window.addEventListener('avatarUpdated', handleAvatarUpdate);
     window.addEventListener('premiumStatusChanged', handlePremiumUpdate);
+    window.addEventListener('dynamicLinksUpdated', handleLinksUpdate);
     return () => {
       window.removeEventListener('avatarUpdated', handleAvatarUpdate);
       window.removeEventListener('premiumStatusChanged', handlePremiumUpdate);
+      window.removeEventListener('dynamicLinksUpdated', handleLinksUpdate);
     };
   }, []);
 
@@ -68,7 +75,60 @@ const MoreScreen = () => {
       items: [
         { label: 'Student Feedbacks', icon: MessageSquare, path: '/feedback', color: 'text-[#BF5AF2]' },
         { label: 'About Naino Academy', icon: Info, path: '/about', color: 'text-[#FF9F0A]' },
-        { label: 'Telegram Support Chat', icon: Send, path: 'https://t.me/nainochatbot', isExternal: true, color: 'text-[#64D2FF]' },
+      ]
+    },
+    {
+      title: 'Telegram Support & Help',
+      isTelegramGroup: true,
+      items: [
+        { 
+          label: getDynamicTitle('more_support_chat', 'Telegram Support Chat'), 
+          icon: Send, 
+          path: getDynamicLink('more_support_chat', 'https://t.me/nainochatbot'), 
+          isExternal: true, 
+          color: 'text-[#64D2FF]',
+          stickerKey: 'support'
+        },
+        { 
+          label: getDynamicTitle('more_admin_contact', 'Admin Contact'), 
+          icon: Send, 
+          path: getDynamicLink('more_admin_contact', 'https://t.me/naino_admin'), 
+          isExternal: true, 
+          color: 'text-[#0A84FF]',
+          stickerKey: 'admin'
+        },
+        { 
+          label: getDynamicTitle('more_official_channel', 'Official Channel'), 
+          icon: Send, 
+          path: getDynamicLink('more_official_channel', 'https://t.me/naino_channel'), 
+          isExternal: true, 
+          color: 'text-[#64D2FF]',
+          stickerKey: 'official_channel'
+        },
+        { 
+          label: getDynamicTitle('more_official_group', 'Official Group'), 
+          icon: Send, 
+          path: getDynamicLink('more_official_group', 'https://t.me/naino_group'), 
+          isExternal: true, 
+          color: 'text-[#0A84FF]',
+          stickerKey: 'official_group'
+        },
+        { 
+          label: getDynamicTitle('more_admin_channel_gifts', 'Admin Channel (Free Gifts)'), 
+          icon: Send, 
+          path: getDynamicLink('more_admin_channel_gifts', 'https://t.me/naino_gifts'), 
+          isExternal: true, 
+          color: 'text-[#FFD700]',
+          stickerKey: 'gifts'
+        },
+        { 
+          label: getDynamicTitle('more_developer_contact', 'Developer Contact'), 
+          icon: Send, 
+          path: getDynamicLink('more_developer_contact', 'https://t.me/cryvex_dev'), 
+          isExternal: true, 
+          color: 'text-[#30D158]',
+          stickerKey: 'developer'
+        }
       ]
     }
   ];
@@ -91,7 +151,7 @@ const MoreScreen = () => {
         </div>
 
         {/* Profile Card Header */}
-        <div 
+        <div
           onClick={() => navigate('/account')}
           className="bg-gradient-to-r from-[#111] to-[#0d0d0d] border border-white/5 rounded-3xl p-5 mb-8 flex items-center justify-between shadow-xl cursor-pointer hover:border-[#FFD700]/30 transition-all active:scale-[0.98]"
         >
@@ -128,7 +188,7 @@ const MoreScreen = () => {
               {group.items.map((item, itemIdx) => {
                 const Icon = item.icon;
                 const isLast = itemIdx === group.items.length - 1;
-                
+
                 if (item.isExternal) {
                   return (
                     <a
@@ -141,6 +201,27 @@ const MoreScreen = () => {
                       <div className="flex items-center gap-3.5">
                         <Icon size={18} className={item.color} />
                         <span className="text-xs font-semibold text-gray-200">{item.label}</span>
+                        {/* USER NOTICE: Yahan aap apne downloaded premium stickers (PNG/GIF) ka source set kar sakte hain */}
+                        {group.isTelegramGroup && (
+                          <img
+                            src={
+                              item.stickerKey === 'support'
+                                ? '/assets/tg_support_sticker.gif' // Yahan support sticker path
+                                : item.stickerKey === 'admin'
+                                  ? '/assets/tg_admin_sticker.gif'   // Yahan admin sticker path
+                                  : item.stickerKey === 'official_channel'
+                                    ? '/assets/tg_channel_sticker.gif' // Yahan official channel sticker path
+                                    : item.stickerKey === 'official_group'
+                                      ? '/assets/tg_group_sticker.gif'   // Yahan official group sticker path
+                                      : item.stickerKey === 'gifts'
+                                        ? '/assets/tg_gifts_sticker.gif'   // Yahan free gifts sticker path
+                                        : '/assets/tg_dev_sticker.gif'      // Yahan developer sticker path
+                            }
+                            alt="Premium Sticker"
+                            className="w-[26px] h-[26px] object-contain ml-1 animate-pulse"
+                            onError={(e) => { e.target.style.display = 'none'; }} // Agar file local folder me nahi hai to hide rahega
+                          />
+                        )}
                       </div>
                       <ChevronRight size={16} className="text-gray-600" />
                     </a>
@@ -167,7 +248,7 @@ const MoreScreen = () => {
 
         {/* Logout Button */}
         <div className="mt-8 px-2">
-          <button 
+          <button
             onClick={() => setIsLogoutModalOpen(true)}
             className="w-full bg-[#111] border border-red-500/10 text-red-500/80 p-4 rounded-2xl font-black text-xs flex items-center justify-center gap-3 hover:bg-red-500 hover:text-white transition-all shadow-lg active:scale-[0.98]"
           >
@@ -176,7 +257,7 @@ const MoreScreen = () => {
         </div>
       </div>
 
-      <ConfirmModal 
+      <ConfirmModal
         isOpen={isLogoutModalOpen}
         title="Logout?"
         message="Are you sure you want to logout? You will need your access key to enter again."

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { fetchBackendAPI } from '../utils/api';
+import { fetchBackendAPI, getDynamicLink } from '../utils/api';
 import { Loader2, ShieldAlert, KeyRound, Bot, User, CheckCircle, SkipForward, Clock, Send, Scan } from 'lucide-react';
 import { getDeviceUuid } from '../utils/device';
 
@@ -367,7 +367,7 @@ const LockScreen = ({ onUnlock }) => {
 
             <div className="flex justify-center mt-6">
               <a 
-                href="https://t.me/nainochatbot" 
+                href={getDynamicLink('lockscreen_bot_link', 'https://t.me/nainochatbot')} 
                 target="_blank" 
                 rel="noreferrer"
                 className="flex items-center gap-2.5 px-6 py-3.5 bg-gradient-to-r from-[#24A1DE] to-[#1E88E5] hover:opacity-90 text-white rounded-xl font-bold uppercase tracking-widest text-[11px] transition-all group shadow-[0_8px_25px_rgba(36,161,222,0.3)] hover:-translate-y-1 hover:shadow-[0_12px_30px_rgba(36,161,222,0.4)]"
@@ -422,7 +422,7 @@ const LockScreen = ({ onUnlock }) => {
                </button>
                
                <a 
-                 href={`https://t.me/NainoAcademyBot?start=${verificationCode}`} 
+                 href={`${getDynamicLink('lockscreen_verify_bot', 'https://t.me/NainoAcademyBot')}?start=${verificationCode}`} 
                  target="_blank" 
                  rel="noreferrer"
                  className="w-full h-12 bg-white/5 hover:bg-white/10 text-gray-300 border border-white/10 hover:border-white/20 font-black uppercase tracking-widest text-[11px] rounded-xl flex items-center justify-center gap-2 transition-all"

@@ -1,5 +1,6 @@
 import React from 'react';
 import { Layers, Bot, FileText, Key, Heart, Gavel, Send } from 'lucide-react';
+import { getDynamicLink } from '../utils/api';
 
 const AboutScreen = () => {
   return (
@@ -85,7 +86,7 @@ const AboutScreen = () => {
           </p>
           
           <a 
-            href="https://t.me/nainochatbot" 
+            href={getDynamicLink('lockscreen_bot_link', 'https://t.me/nainochatbot')} 
             target="_blank" 
             rel="noreferrer"
             className="flex items-center justify-center gap-2 bg-[#222] border border-[#333] text-gray-300 py-3 rounded-xl text-sm font-bold hover:bg-[#333] hover:text-white transition-colors"

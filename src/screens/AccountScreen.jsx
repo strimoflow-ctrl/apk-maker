@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Eye, EyeOff, Camera, LogOut, Send, AlertTriangle, ShieldCheck, User, X, Crown, Loader2, CheckCircle, Sparkles, Smartphone, QrCode, Edit2, BadgeCheck, BookOpen, Timer, Flame, TrendingUp, Tv, Calendar, ChevronRight, Plus, Trash2, Pin, Clock, ClipboardList, CheckSquare, Award, Lightbulb, Smile } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { fetchWithCache, fetchBackendAPI } from '../utils/api';
+import { fetchWithCache, fetchBackendAPI, getDynamicLink } from '../utils/api';
 import AvatarCropper from '../components/AvatarCropper';
 import ConfirmModal from '../components/ConfirmModal';
 import { useAlert } from '../context/AlertContext';
@@ -654,7 +654,7 @@ const AccountScreen = () => {
         {/* Action Buttons (Now Outside the card) */}
         <div className="flex gap-4 px-2 mb-12">
           <a 
-            href="https://t.me/nainochatbot" 
+            href={getDynamicLink('lockscreen_bot_link', 'https://t.me/nainochatbot')} 
             target="_blank" 
             rel="noreferrer"
             className="flex-1 bg-[#111] border border-white/5 text-gray-400 p-4 rounded-2xl font-black text-xs flex items-center justify-center gap-3 hover:bg-[#0088cc] hover:text-white hover:border-[#0088cc] transition-all shadow-lg active:scale-95"

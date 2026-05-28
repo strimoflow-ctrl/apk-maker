@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { HashRouter as Router, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
-import { fetchBackendAPI } from './utils/api';
+import { fetchBackendAPI, fetchWithCache } from './utils/api';
 import { DownloadProvider } from './context/DownloadContext';
 import { AlertProvider } from './context/AlertContext';
 import ScrollToTop from './components/ScrollToTop';
@@ -277,10 +277,10 @@ const App = () => {
                   deviceId: data.deviceId || localStorage.getItem('naino_device_uuid'),
                   updates: { lastActiveAt: now.toISOString() }
                 })
-                .then(() => {
-                  localStorage.setItem('naino_local_last_active_day', todayStr);
-                })
-                .catch(err => console.error("Failed to track active user:", err));
+                  .then(() => {
+                    localStorage.setItem('naino_local_last_active_day', todayStr);
+                  })
+                  .catch(err => console.error("Failed to track active user:", err));
               } else {
                 localStorage.setItem('naino_local_last_active_day', todayStr);
               }
@@ -288,13 +288,13 @@ const App = () => {
           } catch (error) {
             console.error("Failed to verify access key:", error);
             // If API explicitly rejects it (mismatch, revoked, or invalid)
-            const isInvalidOrMismatch = 
-              error.message.includes('Invalid') || 
-              error.message.includes('Access Denied') || 
-              error.message.includes('bound') || 
-              error.message.includes('in use') || 
+            const isInvalidOrMismatch =
+              error.message.includes('Invalid') ||
+              error.message.includes('Access Denied') ||
+              error.message.includes('bound') ||
+              error.message.includes('in use') ||
               error.message.includes('device') ||
-              error.status === 403 || 
+              error.status === 403 ||
               error.status === 404;
 
             if (isInvalidOrMismatch) {
@@ -329,6 +329,22 @@ const App = () => {
       clearInterval(interval);
     };
   }, [isUnlocked]);
+
+  // Fetch dynamic links on mount
+  useEffect(() => {
+    const loadDynamicLinks = async () => {
+      try {
+        const links = await fetchWithCache('/api/links.json', 'cache_dynamic_links', 5 * 60 * 1000); // 5 mins cache
+        if (links) {
+          localStorage.setItem('naino_dynamic_links', JSON.stringify(links));
+          window.dispatchEvent(new Event('dynamicLinksUpdated'));
+        }
+      } catch (err) {
+        console.warn("Failed to fetch dynamic links on startup:", err);
+      }
+    };
+    loadDynamicLinks();
+  }, []);
 
   const handleUnlock = (userData) => {
     localStorage.setItem('naino_access_token', userData.code);
