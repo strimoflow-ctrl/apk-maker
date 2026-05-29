@@ -77,12 +77,7 @@ const NotificationListScreen = () => {
       <div className="relative z-10 max-w-lg mx-auto">
         {/* Header */}
         <header className="flex items-center justify-between mb-8">
-          <button
-            onClick={() => navigate(-1)}
-            className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-white hover:bg-white/10 transition-colors"
-          >
-            <ChevronLeft size={20} />
-          </button>
+          <div className="w-10 h-10"></div>
           
           <h1 className="font-oswald text-xl font-bold tracking-wider uppercase flex items-center gap-2">
             Push <span className="text-[#FFD700]">Alerts</span>

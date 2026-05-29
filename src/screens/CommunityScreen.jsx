@@ -18,12 +18,7 @@ const CommunityScreen = () => {
       {/* Header */}
       <header className="relative z-10 flex flex-col pt-4 px-4 pb-2 bg-[#111]/80 backdrop-blur-xl border-b border-white/10 shrink-0">
         <div className="flex items-center justify-between mb-4">
-          <button
-            onClick={() => navigate(-1)}
-            className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-white hover:bg-white/10 transition-colors"
-          >
-            <ChevronLeft size={20} />
-          </button>
+          <div className="w-10 h-10"></div>
           <h1 className="font-oswald text-xl font-bold tracking-wider uppercase flex items-center gap-2">
             Social <span className="text-[#0A84FF]">Hub</span>
           </h1>
@@ -67,10 +62,25 @@ const FeedTab = () => {
   const [isPosting, setIsPosting] = useState(false);
   const fileInputRef = useRef(null);
 
+  const loadPosts = async () => {
+    try {
+      const data = await fetchBackendAPI('/api/community/posts', 'GET');
+      setPosts(data);
+    } catch (e) {
+      console.error("Failed to load posts:", e);
+    }
+  };
+
   useEffect(() => {
-    // In future, fetch posts from API
-    // fetchBackendAPI('/api/community/posts', 'GET').then(setPosts);
+    loadPosts();
   }, []);
+
+  const fileToBase64 = (file) => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = error => reject(error);
+  });
 
   const handleImageSelect = async (e) => {
     const file = e.target.files[0];
@@ -88,22 +98,40 @@ const FeedTab = () => {
   const handlePost = async () => {
     if (!text && !imageFile) return;
     setIsPosting(true);
-    // Future: Upload image API call here, then create post via backend API
-    setTimeout(() => {
-      setPosts([{
-        id: Date.now(),
-        authorName: 'You',
-        text: text,
-        imageUrl: previewUrl,
-        likesCount: 0,
-        commentsCount: 0,
-        createdAt: new Date().toISOString()
-      }, ...posts]);
+    
+    try {
+      let imageUrl = '';
+      if (imageFile) {
+        imageUrl = await fileToBase64(imageFile);
+      }
+
+      // Hardcode author info for now (in real app, get from context/localstorage)
+      const authorName = localStorage.getItem('naino_username') || 'Student';
+
+      const newPost = await fetchBackendAPI('/api/community/posts', 'POST', {
+        authorName,
+        text,
+        imageUrl
+      });
+
+      setPosts([newPost, ...posts]);
       setText('');
       setImageFile(null);
       setPreviewUrl('');
+    } catch (e) {
+      alert("Failed to post. " + e.message);
+    } finally {
       setIsPosting(false);
-    }, 1000);
+    }
+  };
+
+  const handleLike = async (postId) => {
+    try {
+      const data = await fetchBackendAPI(`/api/community/posts/${postId}/like`, 'POST');
+      setPosts(posts.map(p => p._id === postId ? { ...p, likesCount: data.likesCount } : p));
+    } catch (e) {
+      console.error("Failed to like:", e);
+    }
   };
 
   return (
@@ -163,7 +191,7 @@ const FeedTab = () => {
           <div className="text-center text-gray-500 py-10 text-sm">No posts yet. Be the first to share something!</div>
         ) : (
           posts.map(post => (
-            <div key={post.id} className="bg-[#111] border border-white/5 rounded-2xl p-4">
+            <div key={post._id} className="bg-[#111] border border-white/5 rounded-2xl p-4">
               <div className="flex items-center gap-3 mb-3">
                 <div className="w-10 h-10 rounded-full bg-[#0A84FF]/20 flex items-center justify-center text-[#0A84FF]">
                   <Users size={20} />
@@ -180,7 +208,7 @@ const FeedTab = () => {
               )}
               
               <div className="flex items-center gap-6 border-t border-white/5 pt-3">
-                <button className="flex items-center gap-2 text-gray-400 hover:text-red-500 transition-colors">
+                <button onClick={() => handleLike(post._id)} className="flex items-center gap-2 text-gray-400 hover:text-red-500 transition-colors">
                   <Heart size={18} />
                   <span className="text-xs font-mono">{post.likesCount}</span>
                 </button>
@@ -205,13 +233,47 @@ const ChatTab = () => {
   const [text, setText] = useState('');
   const chatEndRef = useRef(null);
 
-  const handleSend = () => {
+  const loadMessages = async (room) => {
+    try {
+      const data = await fetchBackendAPI(`/api/community/chat/${room}`, 'GET');
+      setMessages(data);
+      setTimeout(() => {
+        chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      }, 100);
+    } catch (e) {
+      console.error("Failed to load chat messages", e);
+    }
+  };
+
+  useEffect(() => {
+    loadMessages(activeRoom);
+    // Real app would use websockets here or polling
+    const interval = setInterval(() => loadMessages(activeRoom), 5000);
+    return () => clearInterval(interval);
+  }, [activeRoom]);
+
+  const handleSend = async () => {
     if (!text.trim()) return;
-    setMessages([...messages, { id: Date.now(), text, isMine: true }]);
+    const authorName = localStorage.getItem('naino_username') || 'Student';
+    
+    // Optimistic update
+    const tempMsg = { _id: Date.now(), text, authorName, isMine: true };
+    setMessages([...messages, tempMsg]);
     setText('');
+    
     setTimeout(() => {
       chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }, 100);
+
+    try {
+      await fetchBackendAPI(`/api/community/chat/${activeRoom}`, 'POST', {
+        authorName,
+        text
+      });
+      loadMessages(activeRoom); // Reload actual state
+    } catch (e) {
+      alert("Failed to send message");
+    }
   };
 
   return (
@@ -238,17 +300,24 @@ const ChatTab = () => {
         <div className="text-center text-xs text-gray-600 mb-6 font-mono bg-white/5 py-2 rounded-lg">
           Welcome to #{activeRoom} chat
         </div>
-        {messages.map(msg => (
-          <div key={msg.id} className={`flex ${msg.isMine ? 'justify-end' : 'justify-start'}`}>
-            <div className={`max-w-[80%] rounded-2xl px-4 py-2 text-sm leading-relaxed ${
-              msg.isMine 
-                ? 'bg-[#0A84FF] text-white rounded-br-sm' 
-                : 'bg-[#222] text-gray-200 rounded-bl-sm'
-            }`}>
-              {msg.text}
+        {messages.map(msg => {
+          // Identify if message is mine
+          const myCode = localStorage.getItem('naino_access_key');
+          const isMine = msg.isMine || msg.authorCode === myCode;
+
+          return (
+            <div key={msg._id} className={`flex flex-col ${isMine ? 'items-end' : 'items-start'} mb-4`}>
+              {!isMine && <span className="text-[10px] text-gray-500 ml-1 mb-1">{msg.authorName}</span>}
+              <div className={`max-w-[80%] rounded-2xl px-4 py-2 text-sm leading-relaxed ${
+                isMine 
+                  ? 'bg-[#0A84FF] text-white rounded-br-sm' 
+                  : 'bg-[#222] text-gray-200 rounded-bl-sm'
+              }`}>
+                {msg.text}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
         <div ref={chatEndRef} />
       </div>
 
@@ -281,11 +350,21 @@ const AdminTab = () => {
   const [message, setMessage] = useState('');
   const [sent, setSent] = useState(false);
 
-  const handleSend = () => {
+  const handleSend = async () => {
     if (!message.trim()) return;
-    // Future: Send to API
-    setSent(true);
-    setTimeout(() => { setMessage(''); setSent(false); }, 3000);
+    
+    try {
+      const authorName = localStorage.getItem('naino_username') || 'Student';
+      await fetchBackendAPI('/api/community/admin-contact', 'POST', {
+        authorName,
+        message,
+        contactInfo: 'App User'
+      });
+      setSent(true);
+      setTimeout(() => { setMessage(''); setSent(false); }, 3000);
+    } catch (e) {
+      alert("Failed to send message");
+    }
   };
 
   return (

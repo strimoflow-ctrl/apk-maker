@@ -135,6 +135,13 @@ export const fetchBackendAPI = async (endpoint, method = 'GET', body = null) => 
     }
   };
   
+  try {
+    const accessKey = localStorage.getItem('naino_access_key');
+    if (accessKey) {
+      options.headers['authorization'] = accessKey;
+    }
+  } catch(e) {}
+  
   if (body) {
     options.body = JSON.stringify(body);
   }
