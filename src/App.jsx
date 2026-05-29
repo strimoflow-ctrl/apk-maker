@@ -36,6 +36,8 @@ import MoreScreen from './screens/MoreScreen';
 import MentorshipListScreen from './screens/MentorshipListScreen';
 import MentorDetailScreen from './screens/MentorDetailScreen';
 import NainoStoreScreen from './screens/NainoStoreScreen';
+import NotificationListScreen from './screens/NotificationListScreen';
+import CommunityScreen from './screens/CommunityScreen';
 import { requestNotificationPermission, listenForForegroundMessages } from './utils/notifications';
 
 // ─── Root Section Paths ────────────────────────────────────────────────────────
@@ -57,6 +59,8 @@ const ROOT_SECTIONS = [
   '/downloads',
   '/mentorship',
   '/store',
+  '/notifications',
+  '/community',
 ];
 
 /**
@@ -82,6 +86,8 @@ const AppShell = () => {
         <div className="flex-1">
           <Routes>
             <Route path="/" element={<HomeScreen />} />
+            <Route path="/notifications" element={<NotificationListScreen />} />
+            <Route path="/community" element={<CommunityScreen />} />
             <Route path="/recent" element={<RecentActivityScreen />} />
             <Route path="/downloads" element={<DownloadScreen />} />
             <Route path="/teachers-library" element={<TeachersLibraryScreen />} />
@@ -294,6 +300,39 @@ const App = () => {
       }
     };
   }, []);
+
+  // Global Online Students Tracker (SSE)
+  useEffect(() => {
+    let onlineTrackerSource = null;
+    
+    if (isUnlocked) {
+      const token = localStorage.getItem('naino_access_token');
+      const username = localStorage.getItem('naino_user_name') || 'Student';
+      const avatar = localStorage.getItem('naino_user_avatar') || '👨‍🎓';
+      const backendUrl = getBackendUrl();
+      
+      if (token && token !== 'XXXXXX') {
+        const query = new URLSearchParams({
+          code: token,
+          name: username,
+          avatar: avatar
+        }).toString();
+        
+        onlineTrackerSource = new EventSource(`${backendUrl}/api/online/listen?${query}`);
+        
+        onlineTrackerSource.onerror = (error) => {
+          console.error("Online Tracker SSE connection error", error);
+        };
+      }
+    }
+    
+    return () => {
+      if (onlineTrackerSource) {
+        onlineTrackerSource.close();
+      }
+    };
+  }, [isUnlocked]);
+
 
   // Startup, Periodic & Visibility Verification
   useEffect(() => {

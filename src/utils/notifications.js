@@ -8,6 +8,39 @@ import { PushNotifications } from '@capacitor/push-notifications';
 const VAPID_KEY = import.meta.env.VITE_FIREBASE_VAPID_KEY;
 const isCapacitor = typeof window !== 'undefined' && !!window.Capacitor;
 
+export const saveNotificationToLocal = (title, body) => {
+  if (!title && !body) return;
+  try {
+    const existing = localStorage.getItem('naino_notifications_list');
+    let notifs = existing ? JSON.parse(existing) : [];
+    
+    // Check if duplicate (same title/body within last 5 seconds)
+    const isDuplicate = notifs.some(n => 
+      n.title === title && 
+      n.body === body && 
+      Date.now() - n.timestamp < 5000
+    );
+    
+    if (!isDuplicate) {
+      notifs.unshift({
+        id: Date.now().toString(),
+        title,
+        body,
+        timestamp: Date.now(),
+        read: false
+      });
+      // Keep only last 50 notifications
+      if (notifs.length > 50) notifs = notifs.slice(0, 50);
+      localStorage.setItem('naino_notifications_list', JSON.stringify(notifs));
+      
+      // Dispatch event to update UI badges
+      window.dispatchEvent(new Event('notificationsUpdated'));
+    }
+  } catch (e) {
+    console.error("Failed to save notification to local storage:", e);
+  }
+};
+
 export const requestNotificationPermission = async () => {
   if (isCapacitor) {
     try {
@@ -45,6 +78,7 @@ export const requestNotificationPermission = async () => {
 
         await PushNotifications.addListener('pushNotificationReceived', (notification) => {
           console.log('Native Push Received in Foreground:', notification);
+          saveNotificationToLocal(notification.title, notification.body);
           if (window.onNativePushReceived) {
             window.onNativePushReceived(notification);
           }
@@ -52,6 +86,10 @@ export const requestNotificationPermission = async () => {
 
         await PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
           console.log('Native Push Action Performed:', action);
+          const notification = action.notification;
+          if (notification) {
+            saveNotificationToLocal(notification.title, notification.body);
+          }
         });
 
         await PushNotifications.register();
@@ -141,6 +179,12 @@ export const listenForForegroundMessages = (onMessageReceivedCallback) => {
   if (messaging) {
     return onMessage(messaging, (payload) => {
       console.log('Message received in foreground: ', payload);
+      
+      saveNotificationToLocal(
+        payload.notification?.title || payload.data?.title, 
+        payload.notification?.body || payload.data?.body
+      );
+
       if (onMessageReceivedCallback) {
         onMessageReceivedCallback(payload);
       } else {

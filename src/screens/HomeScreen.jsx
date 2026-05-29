@@ -72,6 +72,9 @@ const HomeScreen = () => {
 
   // Recent activity states
   const [recentActivity, setRecentActivity] = useState([]);
+  
+  // Notification states
+  const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
     // Listen for avatar/profile updates
@@ -85,9 +88,20 @@ const HomeScreen = () => {
     };
     window.addEventListener('avatarUpdated', handleAvatarUpdate);
     window.addEventListener('globalConfigUpdated', handleConfigUpdate);
+    
+    const handleNotifications = () => {
+      try {
+        const notifs = JSON.parse(localStorage.getItem('naino_notifications_list') || '[]');
+        setUnreadCount(notifs.length);
+      } catch (e) {}
+    };
+    handleNotifications();
+    window.addEventListener('notificationsUpdated', handleNotifications);
+
     return () => {
       window.removeEventListener('avatarUpdated', handleAvatarUpdate);
       window.removeEventListener('globalConfigUpdated', handleConfigUpdate);
+      window.removeEventListener('notificationsUpdated', handleNotifications);
     };
   }, []);
 
@@ -440,11 +454,16 @@ const HomeScreen = () => {
               <Search size={16} />
             </button>
 
-            <button className="relative w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-gray-300 hover:text-[#FFD700] hover:scale-105 active:scale-95 transition-all">
+            <button 
+              onClick={() => navigate('/notifications')}
+              className="relative w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-gray-300 hover:text-[#FFD700] hover:scale-105 active:scale-95 transition-all"
+            >
               <Bell size={16} />
-              <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 bg-red-500 text-white text-[8px] font-black rounded-full flex items-center justify-center border border-black scale-90">
-                1
-              </span>
+              {unreadCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 min-w-[14px] h-3.5 px-1 bg-red-500 text-white text-[8px] font-black rounded-full flex items-center justify-center border border-black scale-90">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
             </button>
 
             <div
@@ -558,39 +577,41 @@ const HomeScreen = () => {
               { label: "Naino Store", icon: Store, path: '/store', color: 'text-[#30D158]', bgClass: 'bg-[#30D158]', desc: "Premium Material", iconClass: "icon-store-anim" },
               { label: "Premium Notes", icon: Star, path: '#', color: 'text-[#BF5AF2]', bgClass: 'bg-[#BF5AF2]', desc: "Specials & Formulas", iconClass: "icon-star-anim" },
               { label: "News", icon: Newspaper, path: '#', color: 'text-[#FF453A]', bgClass: 'bg-[#FF453A]', desc: "Exam Updates", iconClass: "icon-file-anim" },
+              { label: "Community", icon: Users, path: '/community', color: 'text-[#0A84FF]', bgClass: 'bg-[#0A84FF]', desc: "Social Media Hub", iconClass: "icon-users-anim" },
             ].map((item, idx) => {
               const Icon = item.icon;
-              const isLast = idx === 9; // News is the 10th item (index 9)
+              const isWide = idx === 9 || idx === 10; // News (9) and Community (10) are wide
               return (
                 <button
                   key={idx}
                   onClick={() => { if (item.path !== '#') navigate(item.path); }}
                   style={{ animationDelay: `${idx * 45}ms` }}
                   className={`grid-card-anim group relative flex border border-white/5 rounded-2xl transition-all duration-300 active:scale-95 hover:border-[#FFD700]/30 hover:-translate-y-1 shadow-[0_4px_20px_rgba(0,0,0,0.4)] backdrop-blur-md ${
-                    isLast 
+                    isWide 
                       ? 'col-span-3 flex-row items-center gap-4 px-5 py-3 bg-gradient-to-r from-[#111]/90 to-[#111]/45 min-h-[68px]' 
                       : 'flex-col items-center justify-between p-3 bg-[#111]/80 min-h-[105px]'
                   }`}
                 >
                   <div className={`absolute inset-0 opacity-[0.02] group-hover:opacity-[0.08] blur-xl rounded-full transition-opacity duration-300 ${item.bgClass}`} />
-                  
                   <div className={`rounded-xl bg-white/5 border border-white/10 flex items-center justify-center shadow-inner transition-colors group-hover:border-white/20 relative overflow-hidden shrink-0 ${
-                    isLast ? 'w-10 h-10' : 'w-10 h-10 mb-1.5'
+                    isWide ? 'w-10 h-10' : 'w-10 h-10 mb-1.5'
                   }`}>
                     <div className={`absolute inset-0 opacity-10 blur-md rounded-full ${item.bgClass}`} />
                     <Icon size={18} className={`${item.color} ${item.iconClass || ''} drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] z-10 transition-transform`} />
                   </div>
-
-                  <div className={`flex flex-col ${isLast ? 'items-start text-left flex-1' : 'items-center text-center flex-1 justify-center'}`}>
-                    <span className="text-[10px] md:text-[11px] font-black tracking-wide text-white leading-tight">
+                  
+                  <div className={`flex flex-col ${isWide ? 'flex-1 min-w-0' : 'items-center text-center w-full'}`}>
+                    <span className={`font-oswald font-bold text-white tracking-wide leading-tight truncate w-full ${isWide ? 'text-sm' : 'text-[11px]'}`}>
                       {item.label}
                     </span>
-                    <span className="text-[7px] text-gray-500 font-medium leading-tight mt-1 line-clamp-1 group-hover:text-gray-400 transition-colors">
+                    <span className={`text-[#8E8E93] font-medium truncate w-full ${isWide ? 'text-[10px] mt-0.5' : 'text-[8px] mt-1'}`}>
                       {item.desc}
                     </span>
                   </div>
-
-                  <div className="absolute top-1.5 right-1.5 w-1 h-1 rounded-full bg-white/10 group-hover:bg-[#FFD700] transition-colors" />
+                  
+                  {isWide && (
+                    <ChevronRight size={16} className="text-gray-600 shrink-0 group-hover:text-white transition-colors" />
+                  )}    <div className="absolute top-1.5 right-1.5 w-1 h-1 rounded-full bg-white/10 group-hover:bg-[#FFD700] transition-colors" />
                 </button>
               );
             })}
