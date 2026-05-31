@@ -105,12 +105,10 @@ const NotificationListScreen = () => {
     // to strictly use server timestamps and avoid clock skew issues.
 
     // Check if we need to show the swipe hint
-    const hasSeenHint = localStorage.getItem('naino_swipe_hint_seen');
-    if (!hasSeenHint) {
-      setShowHint(true);
-      localStorage.setItem('naino_swipe_hint_seen', 'true');
-      setTimeout(() => setShowHint(false), 2000);
-    }
+    // Play animation once per page load, but turn it off after it finishes
+    // so it doesn't replay when the first item is deleted.
+    setShowHint(true);
+    setTimeout(() => setShowHint(false), 2000);
 
     loadNotifications();
     
@@ -239,7 +237,7 @@ const NotificationListScreen = () => {
             Push <span className="text-[#FFD700]">Alerts</span>
           </h1>
           
-          <div className="w-10 h-10"></div> /* Placeholder for alignment */
+          <div className="w-10 h-10"></div>
         </header>
 
         {/* Notifications List */}

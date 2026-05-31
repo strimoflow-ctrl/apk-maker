@@ -41,6 +41,8 @@ import NainoStoreScreen from './screens/NainoStoreScreen';
 import NotificationListScreen from './screens/NotificationListScreen';
 import CommunityScreen from './screens/CommunityScreen';
 import { requestNotificationPermission, listenForForegroundMessages } from './utils/notifications';
+import { APP_VERSION_CODE } from './config/version';
+import AppUpdateModal from './components/AppUpdateModal';
 
 // ─── Root Section Paths ────────────────────────────────────────────────────────
 // Jab user Home se kisi ROOT section me jaata hai, usse REPLACE use karo (push nahi).
@@ -130,6 +132,8 @@ const App = () => {
     return !!localStorage.getItem('naino_access_token');
   });
   const [showLogoutAlert, setShowLogoutAlert] = useState(false);
+  const [updateData, setUpdateData] = useState(null);
+  const [showUpdateModal, setShowUpdateModal] = useState(false);
 
   // Dynamic config values in state
   const [checkInterval, setCheckInterval] = useState(() => {
@@ -461,7 +465,21 @@ const App = () => {
         console.warn("Failed to fetch dynamic config on startup:", err);
       }
     };
+    
+    const checkAppUpdates = async () => {
+      try {
+        const updateRes = await fetchWithCache('/api/config/app_update.json', 'cache_app_update', 5 * 60 * 1000);
+        if (updateRes && updateRes.latestVersionCode > APP_VERSION_CODE) {
+          setUpdateData(updateRes);
+          setShowUpdateModal(true);
+        }
+      } catch (err) {
+        console.warn("Failed to check for app updates:", err);
+      }
+    };
+
     loadDynamicConfig();
+    checkAppUpdates();
   }, []);
 
   const handleUnlock = (userData) => {
@@ -532,6 +550,12 @@ const App = () => {
   return (
     <AlertProvider>
       <DownloadProvider>
+        {showUpdateModal && (
+          <AppUpdateModal 
+            updateData={updateData} 
+            onClose={() => setShowUpdateModal(false)} 
+          />
+        )}
         <Router>
           <AppShell />
         </Router>
