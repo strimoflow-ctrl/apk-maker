@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { fetchBackendAPI, getDynamicLink, getDynamicTitle } from '../utils/api';
 import { useAlert } from '../context/AlertContext';
 import {
-  User, Info, Settings, LogOut, Send, MessageSquare, Download, Crown, ChevronRight, BookOpen, Star
+  User, Info, Settings, LogOut, Send, MessageSquare, Download, Crown, ChevronRight, BookOpen, Star, Megaphone, Users, Gift, Code
 } from 'lucide-react';
 import ConfirmModal from '../components/ConfirmModal';
 
@@ -65,20 +65,20 @@ const MoreScreen = () => {
     {
       title: 'Academy Sections',
       items: [
-        { label: 'My Account Settings', icon: User, path: '/account', color: 'text-[#FFD700]' },
-        { label: 'Recent Activity Log', icon: BookOpen, path: '/recent', color: 'text-[#30D158]' },
-        { label: 'Downloaded Lectures', icon: Download, path: '/downloads', color: 'text-[#0A84FF]' },
+        { label: 'My Account Settings', icon: User, path: '/account', color: 'text-white', borderColor: 'border-white/20' },
+        { label: 'Recent Activity Log', icon: BookOpen, path: '/recent', color: 'text-white', borderColor: 'border-white/20' },
+        { label: 'Downloaded Lectures', icon: Download, path: '/downloads', color: 'text-white', borderColor: 'border-white/20' },
       ]
     },
     {
       title: 'Support & Interaction',
       items: [
-        { label: 'Student Feedbacks', icon: MessageSquare, path: '/feedback', color: 'text-[#BF5AF2]' },
-        { label: 'About Naino Academy', icon: Info, path: '/about', color: 'text-[#FF9F0A]' },
+        { label: 'Student Feedbacks', icon: MessageSquare, path: '/feedback', color: 'text-white', borderColor: 'border-white/20' },
+        { label: 'About Naino Academy', icon: Info, path: '/about', color: 'text-white', borderColor: 'border-white/20' },
       ]
     },
     {
-      title: 'Telegram Support & Help',
+      title: '',
       isTelegramGroup: true,
       items: [
         { 
@@ -86,48 +86,48 @@ const MoreScreen = () => {
           icon: Send, 
           path: getDynamicLink('more_support_chat', 'https://t.me/nainochatbot'), 
           isExternal: true, 
-          color: 'text-[#64D2FF]',
-          stickerKey: 'support'
+          color: 'text-[#3b82f6]',
+          borderColor: 'border-[#3b82f6]'
         },
         { 
           label: getDynamicTitle('more_admin_contact', 'Admin Contact'), 
-          icon: Send, 
+          icon: User, 
           path: getDynamicLink('more_admin_contact', 'https://t.me/naino_admin'), 
           isExternal: true, 
-          color: 'text-[#0A84FF]',
-          stickerKey: 'admin'
+          color: 'text-[#3b82f6]',
+          borderColor: 'border-[#3b82f6]'
         },
         { 
           label: getDynamicTitle('more_official_channel', 'Official Channel'), 
-          icon: Send, 
+          icon: Megaphone, 
           path: getDynamicLink('more_official_channel', 'https://t.me/naino_channel'), 
           isExternal: true, 
-          color: 'text-[#64D2FF]',
-          stickerKey: 'official_channel'
+          color: 'text-[#3b82f6]',
+          borderColor: 'border-[#3b82f6]'
         },
         { 
           label: getDynamicTitle('more_official_group', 'Official Group'), 
-          icon: Send, 
+          icon: Users, 
           path: getDynamicLink('more_official_group', 'https://t.me/naino_group'), 
           isExternal: true, 
-          color: 'text-[#0A84FF]',
-          stickerKey: 'official_group'
+          color: 'text-[#3b82f6]',
+          borderColor: 'border-[#3b82f6]'
         },
         { 
           label: getDynamicTitle('more_admin_channel_gifts', 'Admin Channel (Free Gifts)'), 
-          icon: Send, 
+          icon: Gift, 
           path: getDynamicLink('more_admin_channel_gifts', 'https://t.me/naino_gifts'), 
           isExternal: true, 
-          color: 'text-[#FFD700]',
-          stickerKey: 'gifts'
+          color: 'text-[#f59e0b]',
+          borderColor: 'border-[#f59e0b]'
         },
         { 
           label: getDynamicTitle('more_developer_contact', 'Developer Contact'), 
-          icon: Send, 
+          icon: Code, 
           path: getDynamicLink('more_developer_contact', 'https://t.me/cryvex_dev'), 
           isExternal: true, 
-          color: 'text-[#30D158]',
-          stickerKey: 'developer'
+          color: 'text-[#10b981]',
+          borderColor: 'border-[#10b981]'
         }
       ]
     }
@@ -178,16 +178,16 @@ const MoreScreen = () => {
           <ChevronRight size={18} className="text-gray-500" />
         </div>
 
-        {/* Menu Groups */}
         {menuGroups.map((group, groupIdx) => (
-          <div key={groupIdx} className="mb-6">
-            <span className="text-[9px] text-gray-500 uppercase font-black tracking-widest block mb-3 px-2">
-              {group.title}
-            </span>
-            <div className="bg-[#111]/80 border border-white/5 rounded-3xl overflow-hidden shadow-lg backdrop-blur-md">
+          <div key={groupIdx} className="mb-4">
+            {group.title && (
+              <span className="text-[10px] text-gray-500 uppercase font-black tracking-widest block mb-2 px-2">
+                {group.title}
+              </span>
+            )}
+            <div className="flex flex-col gap-2">
               {group.items.map((item, itemIdx) => {
                 const Icon = item.icon;
-                const isLast = itemIdx === group.items.length - 1;
 
                 if (item.isExternal) {
                   return (
@@ -196,34 +196,15 @@ const MoreScreen = () => {
                       href={item.path}
                       target="_blank"
                       rel="noreferrer"
-                      className={`flex items-center justify-between p-4 hover:bg-white/5 active:bg-white/10 transition-colors ${!isLast ? 'border-b border-white/5' : ''}`}
+                      className="flex items-center justify-between p-3 rounded-2xl hover:bg-white/5 active:bg-white/10 transition-colors"
                     >
-                      <div className="flex items-center gap-3.5">
-                        <Icon size={18} className={item.color} />
-                        <span className="text-xs font-semibold text-gray-200">{item.label}</span>
-                        {/* USER NOTICE: Yahan aap apne downloaded premium stickers (PNG/GIF) ka source set kar sakte hain */}
-                        {group.isTelegramGroup && (
-                          <img
-                            src={
-                              item.stickerKey === 'support'
-                                ? '/assets/tg_support_sticker.gif' // Yahan support sticker path
-                                : item.stickerKey === 'admin'
-                                  ? '/assets/tg_admin_sticker.gif'   // Yahan admin sticker path
-                                  : item.stickerKey === 'official_channel'
-                                    ? '/assets/tg_channel_sticker.gif' // Yahan official channel sticker path
-                                    : item.stickerKey === 'official_group'
-                                      ? '/assets/tg_group_sticker.gif'   // Yahan official group sticker path
-                                      : item.stickerKey === 'gifts'
-                                        ? '/assets/tg_gifts_sticker.gif'   // Yahan free gifts sticker path
-                                        : '/assets/tg_dev_sticker.gif'      // Yahan developer sticker path
-                            }
-                            alt="Premium Sticker"
-                            className="w-[26px] h-[26px] object-contain ml-1 animate-pulse"
-                            onError={(e) => { e.target.style.display = 'none'; }} // Agar file local folder me nahi hai to hide rahega
-                          />
-                        )}
+                      <div className="flex items-center gap-4">
+                        <div className={`w-9 h-9 rounded-full border flex items-center justify-center shrink-0 ${item.borderColor || 'border-white/20'}`}>
+                          <Icon size={16} className={item.color} />
+                        </div>
+                        <span className="text-[13px] font-semibold text-gray-100">{item.label}</span>
                       </div>
-                      <ChevronRight size={16} className="text-gray-600" />
+                      <ChevronRight size={16} className="text-gray-500" />
                     </a>
                   );
                 }
@@ -232,13 +213,15 @@ const MoreScreen = () => {
                   <button
                     key={itemIdx}
                     onClick={() => navigate(item.path)}
-                    className={`w-full flex items-center justify-between p-4 text-left hover:bg-white/5 active:bg-white/10 transition-colors ${!isLast ? 'border-b border-white/5' : ''}`}
+                    className="w-full flex items-center justify-between p-3 rounded-2xl text-left hover:bg-white/5 active:bg-white/10 transition-colors"
                   >
-                    <div className="flex items-center gap-3.5">
-                      <Icon size={18} className={item.color} />
-                      <span className="text-xs font-semibold text-gray-200">{item.label}</span>
+                    <div className="flex items-center gap-4">
+                      <div className={`w-9 h-9 rounded-full border flex items-center justify-center shrink-0 ${item.borderColor || 'border-white/20'}`}>
+                        <Icon size={16} className={item.color} />
+                      </div>
+                      <span className="text-[13px] font-semibold text-gray-100">{item.label}</span>
                     </div>
-                    <ChevronRight size={16} className="text-gray-600" />
+                    <ChevronRight size={16} className="text-gray-500" />
                   </button>
                 );
               })}
