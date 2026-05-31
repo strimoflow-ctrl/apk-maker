@@ -185,7 +185,7 @@ const MoreScreen = () => {
                 {group.title}
               </span>
             )}
-            <div className="bg-[#111]/90 border border-white/10 rounded-3xl shadow-2xl backdrop-blur-xl overflow-hidden">
+            <div className="bg-[#1a1a1a]/40 border border-white/[0.08] rounded-3xl shadow-lg backdrop-blur-3xl overflow-hidden">
               {group.items.map((item, itemIdx) => {
                 const Icon = item.icon;
                 const isLast = itemIdx === group.items.length - 1;
