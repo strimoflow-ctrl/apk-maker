@@ -173,14 +173,7 @@ const CourseDetailScreen = () => {
     }
   }, [selectedChapter, activeLecture, activeLectureIndex, courseId]);
 
-  useEffect(() => {
-    const query = new URLSearchParams(location.search);
-    if (query.get('chapter') !== 'active') {
-      sessionStorage.removeItem(`naino_active_course_${courseId}_chapter`);
-      sessionStorage.removeItem(`naino_active_course_${courseId}_lecture`);
-      sessionStorage.removeItem(`naino_active_course_${courseId}_index`);
-    }
-  }, [location.search, courseId]);
+  // Removed aggressive sessionStorage cleanup to allow state persistence during routing.
 
   // Restore active lecture state on mount if URL query has ?chapter=active
   useEffect(() => {
