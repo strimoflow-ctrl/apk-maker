@@ -201,7 +201,9 @@ const CoachingDetailScreen = () => {
           const targetSubjectIndex = savedSubjectIndex ? parseInt(savedSubjectIndex, 10) : activeSubjectIndex;
           const subject = activeBatchData.subjects[targetSubjectIndex];
           if (subject) {
-            const foundCh = (subject.chapters || []).find(c => c.name === ch.name || c.chapter === ch.chapter || c.name === ch.chapter || c.chapter === ch.name);
+            const getChId = (obj) => obj?.chapter || obj?.name;
+            const targetId = getChId(ch);
+            const foundCh = (subject.chapters || []).find(c => getChId(c) === targetId && targetId);
             if (foundCh) {
               const foundLec = (foundCh.lectures || []).find(l => l.name === lec.name);
               if (foundLec) {
@@ -224,7 +226,9 @@ const CoachingDetailScreen = () => {
             for (let s = 0; s < activeBatchData.subjects.length; s++) {
               if (s === targetSubjectIndex) continue;
               const sub = activeBatchData.subjects[s];
-              const foundCh = (sub.chapters || []).find(c => c.name === ch.name || c.chapter === ch.chapter || c.name === ch.chapter || c.chapter === ch.name);
+              const getChId = (obj) => obj?.chapter || obj?.name;
+              const targetId = getChId(ch);
+              const foundCh = (sub.chapters || []).find(c => getChId(c) === targetId && targetId);
               if (foundCh) {
                 const foundLec = (foundCh.lectures || []).find(l => l.name === lec.name);
                 if (foundLec) {

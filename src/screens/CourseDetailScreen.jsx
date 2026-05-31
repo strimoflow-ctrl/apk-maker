@@ -190,7 +190,9 @@ const CourseDetailScreen = () => {
           
           let chapterExists = false;
           for (const subject of courseData.subjects || []) {
-            const foundCh = (subject.chapters || []).find(c => c.name === ch.name || c.chapter === ch.chapter || c.name === ch.chapter || c.chapter === ch.name);
+            const getChId = (obj) => obj?.chapter || obj?.name;
+            const targetId = getChId(ch);
+            const foundCh = (subject.chapters || []).find(c => getChId(c) === targetId && targetId);
             if (foundCh) {
               const foundLec = (foundCh.lectures || []).find(l => l.name === lec.name);
               if (foundLec) {
