@@ -109,6 +109,7 @@ const NotificationListScreen = () => {
     if (!hasSeenHint) {
       setShowHint(true);
       localStorage.setItem('naino_swipe_hint_seen', 'true');
+      setTimeout(() => setShowHint(false), 2000);
     }
 
     loadNotifications();
@@ -238,16 +239,7 @@ const NotificationListScreen = () => {
             Push <span className="text-[#FFD700]">Alerts</span>
           </h1>
           
-          {notifications.length > 0 ? (
-            <button
-              onClick={handleClearAll}
-              className="w-10 h-10 rounded-full bg-red-500/10 border border-red-500/30 flex items-center justify-center text-red-500 hover:bg-red-500/20 transition-colors"
-            >
-              <Trash2 size={18} />
-            </button>
-          ) : (
-            <div className="w-10 h-10"></div> /* Placeholder for alignment */
-          )}
+          <div className="w-10 h-10"></div> /* Placeholder for alignment */
         </header>
 
         {/* Notifications List */}
