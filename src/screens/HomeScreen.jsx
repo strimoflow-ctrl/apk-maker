@@ -91,20 +91,53 @@ const HomeScreen = () => {
     };
     window.addEventListener('avatarUpdated', handleAvatarUpdate);
     window.addEventListener('globalConfigUpdated', handleConfigUpdate);
-    
-    const handleNotifications = () => {
+    const calculateUnreadCount = () => {
       try {
-        const notifs = JSON.parse(localStorage.getItem('naino_notifications_list') || '[]');
-        setUnreadCount(notifs.length);
+        const cachedStr = localStorage.getItem('naino_cached_notifications');
+        if (!cachedStr) return;
+        
+        const notifications = JSON.parse(cachedStr);
+        const lastRead = localStorage.getItem('naino_last_read_notifications_timestamp') || 0;
+        
+        const count = notifications.filter(n => new Date(n.createdAt).getTime() > Number(lastRead)).length;
+        setUnreadCount(count);
       } catch (e) {}
     };
-    handleNotifications();
-    window.addEventListener('notificationsUpdated', handleNotifications);
+
+    const fetchNotifications = async () => {
+      try {
+        const token = localStorage.getItem('naino_access_token');
+        if (!token || token === 'XXXXXX') return;
+
+        const res = await fetchBackendAPI(`/api/notifications?userKey=${token}`, 'GET');
+        if (res && Array.isArray(res)) {
+          const deletedStr = localStorage.getItem('naino_deleted_notifications');
+          const deletedIds = deletedStr ? JSON.parse(deletedStr) : [];
+          const activeNotifs = res.filter(n => !deletedIds.includes(n._id));
+          
+          localStorage.setItem('naino_cached_notifications', JSON.stringify(activeNotifs));
+          calculateUnreadCount();
+          window.dispatchEvent(new Event('notificationsUpdated'));
+        }
+      } catch (e) {
+        console.error("Failed to fetch notifications:", e);
+      }
+    };
+
+    calculateUnreadCount();
+    window.addEventListener('notificationsUpdated', calculateUnreadCount);
+    window.addEventListener('badgeUpdateRequired', calculateUnreadCount);
+    window.addEventListener('fetchNewNotifications', fetchNotifications);
+    
+    // Initial fetch on mount
+    fetchNotifications();
 
     return () => {
       window.removeEventListener('avatarUpdated', handleAvatarUpdate);
       window.removeEventListener('globalConfigUpdated', handleConfigUpdate);
-      window.removeEventListener('notificationsUpdated', handleNotifications);
+      window.removeEventListener('notificationsUpdated', calculateUnreadCount);
+      window.removeEventListener('badgeUpdateRequired', calculateUnreadCount);
+      window.removeEventListener('fetchNewNotifications', fetchNotifications);
     };
   }, []);
 
@@ -483,7 +516,7 @@ const HomeScreen = () => {
               <Bell size={16} />
               {unreadCount > 0 && (
                 <span className="absolute -top-0.5 -right-0.5 min-w-[14px] h-3.5 px-1 bg-red-500 text-white text-[8px] font-black rounded-full flex items-center justify-center border border-black scale-90">
-                  {unreadCount > 9 ? '9+' : unreadCount}
+                  {unreadCount > 4 ? '4+' : unreadCount}
                 </span>
               )}
             </button>
