@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { fetchWithCache, fetchBackendAPI, getDynamicLink, getBackendUrl } from '../utils/api';
 import AvatarCropper from '../components/AvatarCropper';
 import ConfirmModal from '../components/ConfirmModal';
+import PostItem from '../components/Community/PostItem';
 import { useAlert } from '../context/AlertContext';
 
 const AccountScreen = () => {
@@ -30,6 +31,46 @@ const AccountScreen = () => {
   const [newNameInput, setNewNameInput] = useState('');
   const [isSavingName, setIsSavingName] = useState(false);
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
+  const [myPosts, setMyPosts] = useState([]);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [postToDelete, setPostToDelete] = useState(null);
+
+  useEffect(() => {
+    const loadProfile = async () => {
+      try {
+        const data = await fetchBackendAPI(`/api/community/users/${secretKey}/profile`, 'GET');
+        if (data && data.posts) {
+          setMyPosts(data.posts);
+        }
+      } catch (e) {
+        console.error("Failed to load user posts", e);
+      }
+    };
+    if (secretKey && secretKey !== 'XXXXXX') {
+      loadProfile();
+    }
+  }, [secretKey]);
+
+  const handleDeletePost = (postId) => {
+    setPostToDelete(postId);
+    setIsDeleteModalOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!postToDelete) return;
+    try {
+      const res = await fetchBackendAPI(`/api/community/posts/${postToDelete}`, 'DELETE');
+      if (res.success) {
+        setMyPosts(myPosts.filter(p => p._id !== postToDelete));
+        showAlert("Post deleted successfully", "success");
+      }
+    } catch (e) {
+      showAlert("Failed to delete post", "error");
+    } finally {
+      setIsDeleteModalOpen(false);
+      setPostToDelete(null);
+    }
+  };
 
   const [pricingData, setPricingData] = useState({
     plans: [
@@ -651,6 +692,27 @@ const AccountScreen = () => {
 
         </div>
 
+        {/* My Posts Section */}
+        {myPosts.length > 0 && (
+          <div className="bg-[#111] border border-white/5 p-5 rounded-2xl mb-8">
+            <h3 className="text-white font-oswald uppercase tracking-wider mb-4 flex items-center gap-2">
+              <ClipboardList size={18} className="text-[#0A84FF]" /> My Posts
+            </h3>
+            <div className="space-y-4">
+              {myPosts.map(post => (
+                <PostItem 
+                  key={post._id} 
+                  post={post} 
+                  onLike={() => {}} 
+                  onCommentClick={() => {}} 
+                  onProfileClick={() => {}}
+                  onDelete={handleDeletePost}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Action Buttons (Now Outside the card) */}
         <div className="flex gap-4 px-2 mb-12">
           <a 
@@ -678,6 +740,15 @@ const AccountScreen = () => {
         onConfirm={handleLogout}
         onCancel={() => setIsLogoutModalOpen(false)}
         confirmText="Logout"
+      />
+
+      <ConfirmModal 
+        isOpen={isDeleteModalOpen}
+        title="Delete Post?"
+        message="Are you sure you want to delete this post? This action cannot be undone."
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setIsDeleteModalOpen(false)}
+        confirmText="Delete"
       />
 
       {/* Success Popup Modal */}

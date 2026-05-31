@@ -395,6 +395,7 @@ export const DownloadProvider = ({ children }) => {
         chunksRef.current[downloadKey] = chunks;
         totalBytesLoaded = loaded;
         let lastUpdateTime = 0;
+        let pendingBuffer = new Uint8Array(0);
         
         for (let i = startSegment; i < resolvedUrls.length; i++) {
           if (controller.signal.aborted) break;
@@ -404,20 +405,33 @@ export const DownloadProvider = ({ children }) => {
             const segRes = await fetch(segUrl, { signal: controller.signal });
             if (!segRes.ok) throw new Error(`Failed to fetch segment: ${segRes.status}`);
             const segData = await segRes.arrayBuffer();
+            const value = new Uint8Array(segData);
             
             if (isCapacitor && fileUri) {
               try {
-                const base64Data = arrayBufferToBase64(new Uint8Array(segData));
-                await Filesystem.appendFile({
-                  path: fileName,
-                  data: base64Data,
-                  directory: Directory.Data
-                });
+                const newBuffer = new Uint8Array(pendingBuffer.length + value.length);
+                newBuffer.set(pendingBuffer, 0);
+                newBuffer.set(value, pendingBuffer.length);
+                
+                const remainder = newBuffer.length % 3;
+                const bytesToEncode = newBuffer.length - remainder;
+                
+                if (bytesToEncode > 0) {
+                  const chunkToEncode = newBuffer.subarray(0, bytesToEncode);
+                  const base64Data = arrayBufferToBase64(chunkToEncode);
+                  await Filesystem.appendFile({
+                    path: fileName,
+                    data: base64Data,
+                    directory: Directory.Data
+                  });
+                }
+                
+                pendingBuffer = newBuffer.subarray(bytesToEncode);
               } catch (fsErr) {
                 console.error("Failed to append segment to filesystem:", fsErr);
               }
             } else {
-              chunks.push(new Uint8Array(segData));
+              chunks.push(value);
             }
             totalBytesLoaded += segData.byteLength;
             segmentsDownloaded = i + 1;
@@ -461,6 +475,19 @@ export const DownloadProvider = ({ children }) => {
           }
         }
         
+        if (isCapacitor && fileUri && pendingBuffer.length > 0) {
+          try {
+            const base64Data = arrayBufferToBase64(pendingBuffer);
+            await Filesystem.appendFile({
+              path: fileName,
+              data: base64Data,
+              directory: Directory.Data
+            });
+          } catch (fsErr) {
+            console.error("Failed to append final segment to filesystem:", fsErr);
+          }
+        }
+
         let finalSize = totalBytesLoaded;
         if (!isCapacitor) {
           const finalBlob = new Blob(chunks, { type: 'video/mp2t' });
@@ -530,6 +557,7 @@ export const DownloadProvider = ({ children }) => {
         const reader = response.body.getReader();
         const chunks = existingBlob ? [existingBlob] : [];
         chunksRef.current[downloadKey] = chunks;
+        let pendingBuffer = new Uint8Array(0);
   
         while (true) {
           const { done, value } = await reader.read();
@@ -538,12 +566,24 @@ export const DownloadProvider = ({ children }) => {
           
           if (isCapacitor && fileUri) {
             try {
-              const base64Data = arrayBufferToBase64(value);
-              await Filesystem.appendFile({
-                path: fileName,
-                data: base64Data,
-                directory: Directory.Data
-              });
+              const newBuffer = new Uint8Array(pendingBuffer.length + value.length);
+              newBuffer.set(pendingBuffer, 0);
+              newBuffer.set(value, pendingBuffer.length);
+              
+              const remainder = newBuffer.length % 3;
+              const bytesToEncode = newBuffer.length - remainder;
+              
+              if (bytesToEncode > 0) {
+                const chunkToEncode = newBuffer.subarray(0, bytesToEncode);
+                const base64Data = arrayBufferToBase64(chunkToEncode);
+                await Filesystem.appendFile({
+                  path: fileName,
+                  data: base64Data,
+                  directory: Directory.Data
+                });
+              }
+              
+              pendingBuffer = newBuffer.subarray(bytesToEncode);
             } catch (fsErr) {
               console.error("Failed to append chunk to filesystem:", fsErr);
             }
@@ -577,6 +617,19 @@ export const DownloadProvider = ({ children }) => {
           }
         }
   
+        if (isCapacitor && fileUri && pendingBuffer.length > 0) {
+          try {
+            const base64Data = arrayBufferToBase64(pendingBuffer);
+            await Filesystem.appendFile({
+              path: fileName,
+              data: base64Data,
+              directory: Directory.Data
+            });
+          } catch (fsErr) {
+            console.error("Failed to append final chunk to filesystem:", fsErr);
+          }
+        }
+
         let finalSize = loaded;
         let isZip = false;
         if (!isCapacitor) {

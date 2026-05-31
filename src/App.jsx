@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { HashRouter as Router, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { fetchBackendAPI, fetchWithCache, getBackendUrl } from './utils/api';
+import { ShieldAlert } from 'lucide-react';
 import { DownloadProvider } from './context/DownloadContext';
 import { AlertProvider } from './context/AlertContext';
 import ScrollToTop from './components/ScrollToTop';
@@ -13,6 +14,7 @@ import BottomNavBar from './components/BottomNavBar';
 import HomeScreen from './screens/HomeScreen';
 import RecentActivityScreen from './screens/RecentActivityScreen';
 import DownloadScreen from './screens/DownloadScreen';
+import NewsScreen from './screens/NewsScreen';
 import TeachersLibraryScreen from './screens/TeachersLibraryScreen';
 import CourseDetailScreen from './screens/CourseDetailScreen';
 import CoachingListScreen from './screens/CoachingListScreen';
@@ -90,6 +92,7 @@ const AppShell = () => {
             <Route path="/community" element={<CommunityScreen />} />
             <Route path="/recent" element={<RecentActivityScreen />} />
             <Route path="/downloads" element={<DownloadScreen />} />
+            <Route path="/news" element={<NewsScreen />} />
             <Route path="/teachers-library" element={<TeachersLibraryScreen />} />
             <Route path="/course/:courseId" element={<CourseDetailScreen />} />
             <Route path="/coaching" element={<CoachingListScreen />} />
@@ -126,6 +129,7 @@ const App = () => {
   const [isUnlocked, setIsUnlocked] = useState(() => {
     return !!localStorage.getItem('naino_access_token');
   });
+  const [showLogoutAlert, setShowLogoutAlert] = useState(false);
 
   // Dynamic config values in state
   const [checkInterval, setCheckInterval] = useState(() => {
@@ -384,12 +388,13 @@ const App = () => {
               error.message.includes('Access Denied') ||
               error.message.includes('bound') ||
               error.message.includes('in use') ||
-              error.message.includes('device') ||
-              error.status === 403 ||
-              error.status === 404;
+              error.message.includes('device');
 
             if (isInvalidOrMismatch) {
               console.warn("Access Key has been revoked, deleted or used on another device. Logging out.");
+              if (error.message.includes('device') || error.message.includes('in use') || error.message.includes('bound') || error.message.includes('Mismatch')) {
+                setShowLogoutAlert(true);
+              }
               localStorage.removeItem('naino_access_token');
               localStorage.removeItem('naino_user_name');
               localStorage.removeItem('naino_user_avatar');
@@ -490,7 +495,32 @@ const App = () => {
   }
 
   if (!isUnlocked) {
-    return <LockScreen onUnlock={handleUnlock} />;
+    return (
+      <>
+        <LockScreen onUnlock={handleUnlock} />
+        {showLogoutAlert && (
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-apple-fade-in">
+            <div className="bg-[#111] border border-red-500/30 rounded-3xl p-6 w-full max-w-sm shadow-[0_0_50px_rgba(255,0,0,0.15)] animate-apple-slide-up flex flex-col items-center text-center">
+              <div className="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center mb-4">
+                <ShieldAlert className="text-red-500 w-8 h-8 animate-pulse" />
+              </div>
+              <h3 className="text-xl font-black text-white font-oswald uppercase tracking-widest mb-2">
+                Security Alert
+              </h3>
+              <p className="text-sm text-gray-400 mb-6 px-2 leading-relaxed">
+                Your account has been logged in from another device. You have been automatically logged out from this device to secure your session.
+              </p>
+              <button
+                onClick={() => setShowLogoutAlert(false)}
+                className="w-full h-12 bg-red-500 hover:bg-red-600 text-white font-black uppercase tracking-widest text-[11px] rounded-xl transition-all shadow-[0_0_20px_rgba(255,0,0,0.2)] active:scale-95"
+              >
+                Understand
+              </button>
+            </div>
+          </div>
+        )}
+      </>
+    );
   }
 
   return (

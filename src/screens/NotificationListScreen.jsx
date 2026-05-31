@@ -7,6 +7,10 @@ const NotificationListScreen = () => {
   const [notifications, setNotifications] = useState([]);
 
   useEffect(() => {
+    // Mark as read immediately when opening the page
+    localStorage.setItem('naino_last_read_notifications_timestamp', Date.now().toString());
+    window.dispatchEvent(new Event('notificationsUpdated'));
+
     loadNotifications();
     
     // Listen for incoming notifications while on this page
@@ -19,9 +23,9 @@ const NotificationListScreen = () => {
 
   const loadNotifications = () => {
     try {
-      const existing = localStorage.getItem('naino_notifications_list');
-      if (existing) {
-        setNotifications(JSON.parse(existing));
+      const cached = localStorage.getItem('naino_cached_notifications');
+      if (cached) {
+        setNotifications(JSON.parse(cached));
       }
     } catch (e) {
       console.error("Failed to load notifications:", e);
@@ -30,9 +34,19 @@ const NotificationListScreen = () => {
 
   const handleDelete = (id) => {
     try {
-      const updated = notifications.filter(n => n.id !== id);
+      // 1. Add to local deleted list so it doesn't show up again
+      const deletedStr = localStorage.getItem('naino_deleted_notifications');
+      const deletedIds = deletedStr ? JSON.parse(deletedStr) : [];
+      if (!deletedIds.includes(id)) {
+        deletedIds.push(id);
+        localStorage.setItem('naino_deleted_notifications', JSON.stringify(deletedIds));
+      }
+
+      // 2. Remove from active state and cache
+      const updated = notifications.filter(n => n._id !== id);
       setNotifications(updated);
-      localStorage.setItem('naino_notifications_list', JSON.stringify(updated));
+      localStorage.setItem('naino_cached_notifications', JSON.stringify(updated));
+      
       window.dispatchEvent(new Event('notificationsUpdated'));
     } catch (e) {
       console.error("Failed to delete notification:", e);
@@ -41,13 +55,30 @@ const NotificationListScreen = () => {
 
   const handleClearAll = () => {
     if (window.confirm("Are you sure you want to clear all notifications?")) {
-      setNotifications([]);
-      localStorage.removeItem('naino_notifications_list');
-      window.dispatchEvent(new Event('notificationsUpdated'));
+      try {
+        const deletedStr = localStorage.getItem('naino_deleted_notifications');
+        const deletedIds = deletedStr ? JSON.parse(deletedStr) : [];
+        
+        // Add all current notification IDs to the deleted list
+        notifications.forEach(n => {
+          if (!deletedIds.includes(n._id)) {
+            deletedIds.push(n._id);
+          }
+        });
+        
+        localStorage.setItem('naino_deleted_notifications', JSON.stringify(deletedIds));
+        
+        setNotifications([]);
+        localStorage.setItem('naino_cached_notifications', JSON.stringify([]));
+        window.dispatchEvent(new Event('notificationsUpdated'));
+      } catch (e) {
+        console.error("Failed to clear notifications:", e);
+      }
     }
   };
 
   const formatTime = (timestamp) => {
+    if (!timestamp) return '';
     const d = new Date(timestamp);
     const now = new Date();
     
@@ -112,7 +143,7 @@ const NotificationListScreen = () => {
           ) : (
             notifications.map(notif => (
               <div 
-                key={notif.id}
+                key={notif._id}
                 className="bg-[#111] border border-white/5 hover:border-[#FFD700]/30 rounded-2xl p-4 flex gap-4 transition-colors group relative overflow-hidden"
               >
                 <div className="w-10 h-10 rounded-full bg-[#FFD700]/10 border border-[#FFD700]/30 shrink-0 flex items-center justify-center text-[#FFD700]">
@@ -134,7 +165,7 @@ const NotificationListScreen = () => {
                 
                 {/* Delete Button (Visible on hover on desktop, or swipe on mobile - but click is easiest) */}
                 <button 
-                  onClick={() => handleDelete(notif.id)}
+                  onClick={() => handleDelete(notif._id)}
                   className="absolute right-0 top-0 bottom-0 w-14 bg-red-500/90 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity translate-x-full group-hover:translate-x-0"
                 >
                   <Trash2 size={16} />

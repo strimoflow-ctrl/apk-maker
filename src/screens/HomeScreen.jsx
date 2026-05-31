@@ -7,7 +7,7 @@ import {
   MessageSquare, TrendingUp, Users, Award, ChevronRight, Trophy, MoreVertical,
   Book, Zap, Video, Compass, Store, Star, Newspaper, Target, GraduationCap
 } from 'lucide-react';
-import { fetchWithCache } from '../utils/api';
+import { fetchWithCache, fetchBackendAPI } from '../utils/api';
 
 // Active users count time-based ranges lookup
 const getActiveUsersRange = (hour) => {
@@ -76,6 +76,9 @@ const HomeScreen = () => {
   // Notification states
   const [unreadCount, setUnreadCount] = useState(0);
 
+  // Unread News State
+  const [hasUnreadNews, setHasUnreadNews] = useState(false);
+
   useEffect(() => {
     // Listen for avatar/profile updates
     const handleAvatarUpdate = () => {
@@ -103,6 +106,25 @@ const HomeScreen = () => {
       window.removeEventListener('globalConfigUpdated', handleConfigUpdate);
       window.removeEventListener('notificationsUpdated', handleNotifications);
     };
+  }, []);
+
+  // Check for unread news
+  useEffect(() => {
+    const checkNews = async () => {
+      try {
+        const data = await fetchBackendAPI('/api/news', 'GET');
+        if (data && data.length > 0) {
+          const latestNewsTime = new Date(data[0].createdAt).getTime();
+          const lastSeen = localStorage.getItem('naino_last_seen_news_time');
+          if (!lastSeen || latestNewsTime > parseInt(lastSeen, 10)) {
+            setHasUnreadNews(true);
+          }
+        }
+      } catch (e) {
+        console.warn("Failed to check for latest news:", e);
+      }
+    };
+    checkNews();
   }, []);
 
   // Synchronously load banner cache to prevent UI flashing
@@ -576,7 +598,7 @@ const HomeScreen = () => {
               { label: "Mentorship", icon: Target, path: '/mentorship', color: 'text-[#FFD700]', bgClass: 'bg-[#FFD700]', desc: "1-on-1 Guidance", iconClass: "icon-target-anim" },
               { label: "Naino Store", icon: Store, path: '/store', color: 'text-[#30D158]', bgClass: 'bg-[#30D158]', desc: "Premium Material", iconClass: "icon-store-anim" },
               { label: "Premium Notes", icon: Star, path: '#', color: 'text-[#BF5AF2]', bgClass: 'bg-[#BF5AF2]', desc: "Specials & Formulas", iconClass: "icon-star-anim" },
-              { label: "News", icon: Newspaper, path: '#', color: 'text-[#FF453A]', bgClass: 'bg-[#FF453A]', desc: "Exam Updates", iconClass: "icon-file-anim" },
+              { label: "News", icon: Newspaper, path: '/news', color: 'text-[#FF453A]', bgClass: 'bg-[#FF453A]', desc: "Exam Updates", iconClass: "icon-file-anim", isNews: true },
               { label: "Community", icon: Users, path: '/community', color: 'text-[#0A84FF]', bgClass: 'bg-[#0A84FF]', desc: "Social Media Hub", iconClass: "icon-users-anim" },
             ].map((item, idx) => {
               const Icon = item.icon;
@@ -584,7 +606,13 @@ const HomeScreen = () => {
               return (
                 <button
                   key={idx}
-                  onClick={() => { if (item.path !== '#') navigate(item.path); }}
+                  onClick={() => { 
+                    if (item.isNews) {
+                      localStorage.setItem('naino_last_seen_news_time', Date.now().toString());
+                      setHasUnreadNews(false);
+                    }
+                    if (item.path !== '#') navigate(item.path); 
+                  }}
                   style={{ animationDelay: `${idx * 45}ms` }}
                   className={`grid-card-anim group relative flex border border-white/5 rounded-2xl transition-all duration-300 active:scale-95 hover:border-[#FFD700]/30 hover:-translate-y-1 shadow-[0_4px_20px_rgba(0,0,0,0.4)] backdrop-blur-md ${
                     isWide 
@@ -612,6 +640,17 @@ const HomeScreen = () => {
                   {isWide && (
                     <ChevronRight size={16} className="text-gray-600 shrink-0 group-hover:text-white transition-colors" />
                   )}    <div className="absolute top-1.5 right-1.5 w-1 h-1 rounded-full bg-white/10 group-hover:bg-[#FFD700] transition-colors" />
+                  
+                  {item.isNews && hasUnreadNews && (
+                    <div className="absolute -top-1.5 -right-1.5 z-20">
+                      <div className="relative flex items-center justify-center">
+                        <span className="absolute inset-0 bg-[#FF453A] rounded-full animate-ping opacity-60"></span>
+                        <span className="relative bg-gradient-to-tr from-[#FF453A] to-red-400 text-white text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full shadow-[0_0_15px_rgba(255,69,58,0.6)] border border-[#FF453A]/50">
+                          NEW
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </button>
               );
             })}

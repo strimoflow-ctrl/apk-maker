@@ -131,12 +131,13 @@ export const fetchBackendAPI = async (endpoint, method = 'GET', body = null) => 
   const options = {
     method,
     headers: {
-      'Content-Type': 'application/json'
+      'Content-Type': 'application/json',
+      'x-api-key': import.meta.env.VITE_API_KEY
     }
   };
   
   try {
-    const accessKey = localStorage.getItem('naino_access_key');
+    const accessKey = localStorage.getItem('naino_access_token');
     if (accessKey) {
       options.headers['authorization'] = accessKey;
     }

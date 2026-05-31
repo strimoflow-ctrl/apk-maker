@@ -17,6 +17,8 @@ const Header = () => {
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState(localStorage.getItem('naino_user_avatar'));
+  
+  const [unreadNotifCount, setUnreadNotifCount] = useState(0);
 
   const handleLogout = async () => {
     try {
@@ -55,12 +57,52 @@ const Header = () => {
 
     document.addEventListener('mousedown', handleClickOutside);
     window.addEventListener('avatarUpdated', updateAvatar);
+    window.addEventListener('notificationsUpdated', calculateUnreadCount);
+    
+    // Initial fetch
+    fetchNotifications();
     
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
       window.removeEventListener('avatarUpdated', updateAvatar);
+      window.removeEventListener('notificationsUpdated', calculateUnreadCount);
     };
   }, []);
+
+  const fetchNotifications = async () => {
+    try {
+      const token = localStorage.getItem('naino_access_token');
+      if (!token || token === 'XXXXXX') return;
+
+      const res = await fetchBackendAPI(`/api/notifications?userKey=${token}`, 'GET');
+      if (res && Array.isArray(res)) {
+        // Filter out locally deleted ones
+        const deletedStr = localStorage.getItem('naino_deleted_notifications');
+        const deletedIds = deletedStr ? JSON.parse(deletedStr) : [];
+        const activeNotifs = res.filter(n => !deletedIds.includes(n._id));
+        
+        localStorage.setItem('naino_cached_notifications', JSON.stringify(activeNotifs));
+        calculateUnreadCount();
+      }
+    } catch (e) {
+      console.error("Failed to fetch notifications:", e);
+    }
+  };
+
+  const calculateUnreadCount = () => {
+    try {
+      const cachedStr = localStorage.getItem('naino_cached_notifications');
+      if (!cachedStr) return;
+      
+      const notifications = JSON.parse(cachedStr);
+      const lastRead = localStorage.getItem('naino_last_read_notifications_timestamp') || 0;
+      
+      const unreadCount = notifications.filter(n => new Date(n.createdAt).getTime() > Number(lastRead)).length;
+      setUnreadNotifCount(unreadCount);
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   useEffect(() => {
     // Show checkmark briefly when a new download finishes
@@ -117,13 +159,15 @@ const Header = () => {
           </Link>
           
           <Link 
-            to="#" 
+            to="/notifications" 
             className="relative flex items-center justify-center w-9 h-9 md:w-10 md:h-10 text-[#FFD700] hover:scale-110 hover:drop-shadow-[0_0_8px_#FFD700] transition-all"
           >
             <Bell size={20} />
-            <div className="absolute top-0 right-0 bg-red-500 text-white text-[10px] font-bold min-w-[16px] h-[16px] rounded-full flex items-center justify-center border-2 border-black">
-              1
-            </div>
+            {unreadNotifCount > 0 && (
+              <div className="absolute top-0 right-0 bg-red-500 text-white text-[10px] font-bold min-w-[16px] h-[16px] px-1 rounded-full flex items-center justify-center border-2 border-black">
+                {unreadNotifCount > 4 ? '4+' : unreadNotifCount}
+              </div>
+            )}
           </Link>
 
           <Link to="/account" className="relative ml-1 md:ml-2">
