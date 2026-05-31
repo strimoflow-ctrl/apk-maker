@@ -170,26 +170,29 @@ const CrashCourseDetailScreen = () => {
     }
   }, [selectedChapter, activeLecture, activeLectureIndex, activeBatchIndex, activeSubjectIndex, courseId]);
 
-  useEffect(() => {
-    const query = new URLSearchParams(location.search);
-    if (query.get('chapter') !== 'active') {
-      sessionStorage.removeItem(`naino_active_crash_${courseId}_chapter`);
-      sessionStorage.removeItem(`naino_active_crash_${courseId}_lecture`);
-      sessionStorage.removeItem(`naino_active_crash_${courseId}_index`);
-      sessionStorage.removeItem(`naino_active_crash_${courseId}_batch_index`);
-      sessionStorage.removeItem(`naino_active_crash_${courseId}_subject_index`);
-    }
-  }, [location.search, courseId]);
+  // Removed aggressive sessionStorage cleanup to allow state persistence during routing.
 
   // Restore active lecture state on mount/data load if URL query has ?chapter=active
   useEffect(() => {
     const query = new URLSearchParams(location.search);
-    if (query.get('chapter') === 'active' && !selectedChapter && activeBatchData && activeBatchData.subjects) {
+    if (query.get('chapter') === 'active' && !selectedChapter && courseData) {
       try {
+        const savedBatchIndex = sessionStorage.getItem(`naino_active_crash_${courseId}_batch_index`);
+        
+        // Sync Batch Index first before attempting to find the chapter
+        if (savedBatchIndex !== null) {
+          const parsedBatchIdx = parseInt(savedBatchIndex, 10);
+          if (activeBatchIndex !== parsedBatchIdx) {
+            setActiveBatchIndex(parsedBatchIdx);
+            return; // Wait for the correct batch data to load
+          }
+        }
+
+        if (!activeBatchData || !activeBatchData.subjects) return;
+
         const savedChapter = sessionStorage.getItem(`naino_active_crash_${courseId}_chapter`);
         const savedLecture = sessionStorage.getItem(`naino_active_crash_${courseId}_lecture`);
         const savedIndex = sessionStorage.getItem(`naino_active_crash_${courseId}_index`);
-        const savedBatchIndex = sessionStorage.getItem(`naino_active_crash_${courseId}_batch_index`);
         const savedSubjectIndex = sessionStorage.getItem(`naino_active_crash_${courseId}_subject_index`);
         
         if (savedChapter && savedLecture) {
@@ -200,7 +203,9 @@ const CrashCourseDetailScreen = () => {
           const targetSubjectIndex = savedSubjectIndex ? parseInt(savedSubjectIndex, 10) : activeSubjectIndex;
           const subject = activeBatchData.subjects[targetSubjectIndex];
           if (subject) {
-            const foundCh = (subject.chapters || []).find(c => c.name === ch.name || c.chapter === ch.chapter || c.name === ch.chapter || c.chapter === ch.name);
+            const getChId = (obj) => obj?.chapter || obj?.name;
+            const targetId = getChId(ch);
+            const foundCh = (subject.chapters || []).find(c => getChId(c) === targetId && targetId);
             if (foundCh) {
               const foundLec = (foundCh.lectures || []).find(l => l.name === lec.name);
               if (foundLec) {
@@ -223,7 +228,9 @@ const CrashCourseDetailScreen = () => {
             for (let s = 0; s < activeBatchData.subjects.length; s++) {
               if (s === targetSubjectIndex) continue;
               const sub = activeBatchData.subjects[s];
-              const foundCh = (sub.chapters || []).find(c => c.name === ch.name || c.chapter === ch.chapter || c.name === ch.chapter || c.chapter === ch.name);
+              const getChId = (obj) => obj?.chapter || obj?.name;
+              const targetId = getChId(ch);
+              const foundCh = (sub.chapters || []).find(c => getChId(c) === targetId && targetId);
               if (foundCh) {
                 const foundLec = (foundCh.lectures || []).find(l => l.name === lec.name);
                 if (foundLec) {
@@ -253,7 +260,7 @@ const CrashCourseDetailScreen = () => {
         console.error("Failed to restore active lecture state:", e);
       }
     }
-  }, [activeBatchData, location.search, courseId, navigate, getOfflineFileUrl, selectedChapter]);
+  }, [courseData, activeBatchData, location.search, courseId, navigate, getOfflineFileUrl, selectedChapter, activeBatchIndex]);
 
   // Auto-play from state (Navigation fix included)
   useEffect(() => {
