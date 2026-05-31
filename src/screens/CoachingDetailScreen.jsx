@@ -185,12 +185,24 @@ const CoachingDetailScreen = () => {
   // Restore active lecture state on mount/data load if URL query has ?chapter=active
   useEffect(() => {
     const query = new URLSearchParams(location.search);
-    if (query.get('chapter') === 'active' && !selectedChapter && activeBatchData && activeBatchData.subjects) {
+    if (query.get('chapter') === 'active' && !selectedChapter && coachingData) {
       try {
+        const savedBatchIndex = sessionStorage.getItem(`naino_active_coaching_${coachingId}_batch_index`);
+        
+        // Sync Batch Index first before attempting to find the chapter
+        if (savedBatchIndex !== null) {
+          const parsedBatchIdx = parseInt(savedBatchIndex, 10);
+          if (activeBatchIndex !== parsedBatchIdx) {
+            setActiveBatchIndex(parsedBatchIdx);
+            return; // Wait for the correct batch data to load
+          }
+        }
+
+        if (!activeBatchData || !activeBatchData.subjects) return;
+
         const savedChapter = sessionStorage.getItem(`naino_active_coaching_${coachingId}_chapter`);
         const savedLecture = sessionStorage.getItem(`naino_active_coaching_${coachingId}_lecture`);
         const savedIndex = sessionStorage.getItem(`naino_active_coaching_${coachingId}_index`);
-        const savedBatchIndex = sessionStorage.getItem(`naino_active_coaching_${coachingId}_batch_index`);
         const savedSubjectIndex = sessionStorage.getItem(`naino_active_coaching_${coachingId}_subject_index`);
         
         if (savedChapter && savedLecture) {
@@ -258,7 +270,7 @@ const CoachingDetailScreen = () => {
         console.error("Failed to restore active lecture state:", e);
       }
     }
-  }, [activeBatchData, location.search, coachingId, navigate, getOfflineFileUrl, selectedChapter]);
+  }, [coachingData, activeBatchData, location.search, coachingId, navigate, getOfflineFileUrl, selectedChapter, activeBatchIndex]);
 
   // Auto-play from state (e.g. from Recent Activity)
   useEffect(() => {
