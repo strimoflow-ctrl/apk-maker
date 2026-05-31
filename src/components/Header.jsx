@@ -58,6 +58,7 @@ const Header = () => {
     document.addEventListener('mousedown', handleClickOutside);
     window.addEventListener('avatarUpdated', updateAvatar);
     window.addEventListener('notificationsUpdated', calculateUnreadCount);
+    window.addEventListener('badgeUpdateRequired', calculateUnreadCount);
     window.addEventListener('fetchNewNotifications', fetchNotifications);
     
     // Initial fetch
@@ -67,6 +68,7 @@ const Header = () => {
       document.removeEventListener('mousedown', handleClickOutside);
       window.removeEventListener('avatarUpdated', updateAvatar);
       window.removeEventListener('notificationsUpdated', calculateUnreadCount);
+      window.removeEventListener('badgeUpdateRequired', calculateUnreadCount);
       window.removeEventListener('fetchNewNotifications', fetchNotifications);
     };
   }, []);

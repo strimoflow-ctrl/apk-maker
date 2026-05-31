@@ -101,9 +101,8 @@ const NotificationListScreen = () => {
   const [showHint, setShowHint] = useState(false);
 
   useEffect(() => {
-    // Mark as read immediately when opening the page
-    localStorage.setItem('naino_last_read_notifications_timestamp', Date.now().toString());
-    window.dispatchEvent(new Event('notificationsUpdated'));
+    // The timestamp update logic is now moved inside loadNotifications
+    // to strictly use server timestamps and avoid clock skew issues.
 
     // Check if we need to show the swipe hint
     const hasSeenHint = localStorage.getItem('naino_swipe_hint_seen');
@@ -126,7 +125,23 @@ const NotificationListScreen = () => {
     try {
       const cached = localStorage.getItem('naino_cached_notifications');
       if (cached) {
-        setNotifications(JSON.parse(cached));
+        const parsed = JSON.parse(cached);
+        setNotifications(parsed);
+        
+        // Update last read to the newest notification's server timestamp
+        if (parsed.length > 0) {
+          const newestTime = Math.max(...parsed.map(n => new Date(n.createdAt).getTime()));
+          const oldTime = Number(localStorage.getItem('naino_last_read_notifications_timestamp') || 0);
+          
+          if (newestTime > oldTime) {
+            localStorage.setItem('naino_last_read_notifications_timestamp', newestTime.toString());
+            window.dispatchEvent(new Event('badgeUpdateRequired'));
+          }
+        } else if (parsed.length === 0) {
+           // If list is empty, also clear badge
+           localStorage.setItem('naino_last_read_notifications_timestamp', Date.now().toString());
+           window.dispatchEvent(new Event('badgeUpdateRequired'));
+        }
       }
     } catch (e) {
       console.error("Failed to load notifications:", e);
