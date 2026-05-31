@@ -58,6 +58,7 @@ const Header = () => {
     document.addEventListener('mousedown', handleClickOutside);
     window.addEventListener('avatarUpdated', updateAvatar);
     window.addEventListener('notificationsUpdated', calculateUnreadCount);
+    window.addEventListener('fetchNewNotifications', fetchNotifications);
     
     // Initial fetch
     fetchNotifications();
@@ -66,6 +67,7 @@ const Header = () => {
       document.removeEventListener('mousedown', handleClickOutside);
       window.removeEventListener('avatarUpdated', updateAvatar);
       window.removeEventListener('notificationsUpdated', calculateUnreadCount);
+      window.removeEventListener('fetchNewNotifications', fetchNotifications);
     };
   }, []);
 
@@ -83,6 +85,9 @@ const Header = () => {
         
         localStorage.setItem('naino_cached_notifications', JSON.stringify(activeNotifs));
         calculateUnreadCount();
+        
+        // Let other components (like NotificationListScreen) know the cache is updated
+        window.dispatchEvent(new Event('notificationsUpdated'));
       }
     } catch (e) {
       console.error("Failed to fetch notifications:", e);
