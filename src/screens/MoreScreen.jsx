@@ -179,15 +179,16 @@ const MoreScreen = () => {
         </div>
 
         {menuGroups.map((group, groupIdx) => (
-          <div key={groupIdx} className="mb-4">
+          <div key={groupIdx} className="mb-6">
             {group.title && (
-              <span className="text-[10px] text-gray-500 uppercase font-black tracking-widest block mb-2 px-2">
+              <span className="text-[10px] text-gray-500 uppercase font-black tracking-widest block mb-3 px-2">
                 {group.title}
               </span>
             )}
-            <div className="flex flex-col gap-2">
+            <div className="bg-[#111]/90 border border-white/10 rounded-3xl shadow-2xl backdrop-blur-xl overflow-hidden">
               {group.items.map((item, itemIdx) => {
                 const Icon = item.icon;
+                const isLast = itemIdx === group.items.length - 1;
 
                 if (item.isExternal) {
                   return (
@@ -196,15 +197,15 @@ const MoreScreen = () => {
                       href={item.path}
                       target="_blank"
                       rel="noreferrer"
-                      className="flex items-center justify-between p-3 rounded-2xl hover:bg-white/5 active:bg-white/10 transition-colors"
+                      className={`flex items-center justify-between p-4 hover:bg-white/5 active:bg-white/10 transition-colors ${!isLast ? 'border-b border-white/5' : ''}`}
                     >
                       <div className="flex items-center gap-4">
                         <div className={`w-9 h-9 rounded-full border flex items-center justify-center shrink-0 ${item.borderColor || 'border-white/20'}`}>
                           <Icon size={16} className={item.color} />
                         </div>
-                        <span className="text-[13px] font-semibold text-gray-100">{item.label}</span>
+                        <span className="text-[13.5px] font-semibold text-gray-100">{item.label}</span>
                       </div>
-                      <ChevronRight size={16} className="text-gray-500" />
+                      <ChevronRight size={16} className="text-gray-600" />
                     </a>
                   );
                 }
@@ -213,15 +214,15 @@ const MoreScreen = () => {
                   <button
                     key={itemIdx}
                     onClick={() => navigate(item.path)}
-                    className="w-full flex items-center justify-between p-3 rounded-2xl text-left hover:bg-white/5 active:bg-white/10 transition-colors"
+                    className={`w-full flex items-center justify-between p-4 text-left hover:bg-white/5 active:bg-white/10 transition-colors ${!isLast ? 'border-b border-white/5' : ''}`}
                   >
                     <div className="flex items-center gap-4">
                       <div className={`w-9 h-9 rounded-full border flex items-center justify-center shrink-0 ${item.borderColor || 'border-white/20'}`}>
                         <Icon size={16} className={item.color} />
                       </div>
-                      <span className="text-[13px] font-semibold text-gray-100">{item.label}</span>
+                      <span className="text-[13.5px] font-semibold text-gray-100">{item.label}</span>
                     </div>
-                    <ChevronRight size={16} className="text-gray-500" />
+                    <ChevronRight size={16} className="text-gray-600" />
                   </button>
                 );
               })}
