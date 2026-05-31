@@ -191,6 +191,9 @@ const App = () => {
     // Request notification permission and listen for foreground messages
     requestNotificationPermission();
     const unsubscribe = listenForForegroundMessages((payload) => {
+      // Dispatch event to fetch latest notifications
+      window.dispatchEvent(new Event('notificationsUpdated'));
+
       // Create a nice golden toast for foreground notifications
       const title = payload.notification?.title || 'New Notification';
       const body = payload.notification?.body || '';
@@ -249,6 +252,9 @@ const App = () => {
               const currentStatus = pending.status?.trim().toLowerCase();
 
               if (lastStatus === 'pending' && currentStatus !== 'pending') {
+                // Fetch latest notifications to show the approval/rejection notification
+                window.dispatchEvent(new Event('notificationsUpdated'));
+
                 const toast = document.createElement('div');
                 toast.className = 'fixed top-4 left-4 right-4 md:left-auto md:right-4 md:w-96 bg-[#111]/90 backdrop-blur-xl border border-[#FFD700]/30 rounded-2xl p-4 shadow-[0_10px_40px_rgba(255,215,0,0.2)] z-[9999] animate-slide-up flex flex-col cursor-pointer border-l-4 border-l-[#FFD700]';
 
