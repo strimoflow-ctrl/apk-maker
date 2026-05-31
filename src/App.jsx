@@ -43,6 +43,9 @@ import CommunityScreen from './screens/CommunityScreen';
 import { requestNotificationPermission, listenForForegroundMessages } from './utils/notifications';
 import { APP_VERSION_CODE } from './config/version';
 import AppUpdateModal from './components/AppUpdateModal';
+import PromoPopupModal from './components/PromoPopupModal';
+import { db } from './firebase';
+import { doc, getDoc } from 'firebase/firestore';
 
 // ─── Root Section Paths ────────────────────────────────────────────────────────
 // Jab user Home se kisi ROOT section me jaata hai, usse REPLACE use karo (push nahi).
@@ -134,6 +137,8 @@ const App = () => {
   const [showLogoutAlert, setShowLogoutAlert] = useState(false);
   const [updateData, setUpdateData] = useState(null);
   const [showUpdateModal, setShowUpdateModal] = useState(false);
+  const [promoData, setPromoData] = useState(null);
+  const [showPromoModal, setShowPromoModal] = useState(false);
 
   // Dynamic config values in state
   const [checkInterval, setCheckInterval] = useState(() => {
@@ -478,9 +483,43 @@ const App = () => {
       }
     };
 
+    const checkPromoPopup = async () => {
+      try {
+        const docRef = doc(db, 'app_settings', 'promo_popup');
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          if (data.isActive) {
+            const updatedAtStr = data.updatedAt ? data.updatedAt.toDate().getTime().toString() : '0';
+            const lastSeen = localStorage.getItem('naino_last_promo_seen');
+            if (updatedAtStr !== lastSeen) {
+              setPromoData(data);
+              setShowPromoModal(true);
+            }
+          }
+        }
+      } catch (err) {
+        console.warn("Failed to check promo popup:", err);
+      }
+    };
+
     loadDynamicConfig();
     checkAppUpdates();
+    
+    // Slight delay so popup doesn't clash with update modal immediately
+    setTimeout(() => {
+      checkPromoPopup();
+    }, 1500);
   }, []);
+
+  const handleClosePromo = () => {
+    setShowPromoModal(false);
+    if (promoData && promoData.updatedAt) {
+      localStorage.setItem('naino_last_promo_seen', promoData.updatedAt.toDate().getTime().toString());
+    } else {
+      localStorage.setItem('naino_last_promo_seen', Date.now().toString());
+    }
+  };
 
   const handleUnlock = (userData) => {
     localStorage.setItem('naino_access_token', userData.code);
@@ -554,6 +593,12 @@ const App = () => {
           <AppUpdateModal 
             updateData={updateData} 
             onClose={() => setShowUpdateModal(false)} 
+          />
+        )}
+        {!showUpdateModal && showPromoModal && (
+          <PromoPopupModal 
+            promoData={promoData} 
+            onClose={handleClosePromo} 
           />
         )}
         <Router>

@@ -1,5 +1,6 @@
 import { initializeApp } from "firebase/app";
 import { getMessaging } from "firebase/messaging";
+import { getFirestore } from "firebase/firestore";
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -23,3 +24,4 @@ try {
 }
 
 export const messaging = messagingInstance;
+export const db = getFirestore(app);
