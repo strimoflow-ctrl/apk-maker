@@ -626,22 +626,30 @@ const HomeScreen = () => {
               { label: "Books", icon: Book, path: '/book-library', color: 'text-[#0A84FF]', bgClass: 'bg-gradient-to-br from-[#0A84FF]/20 to-[#0A84FF]/5' },
               { label: "Mentors", icon: Target, path: '/mentorship', color: 'text-[#FFD700]', bgClass: 'bg-gradient-to-br from-[#FFD700]/20 to-[#FFD700]/5' },
               { label: "Store", icon: Store, path: '/store', color: 'text-[#30D158]', bgClass: 'bg-gradient-to-br from-[#30D158]/20 to-[#30D158]/5' },
-              { label: "Notes", icon: Star, path: '#', color: 'text-[#BF5AF2]', bgClass: 'bg-gradient-to-br from-[#BF5AF2]/20 to-[#BF5AF2]/5' }
+              { label: "Notes", icon: Star, path: '#', color: 'text-[#BF5AF2]', bgClass: 'bg-gradient-to-br from-[#BF5AF2]/20 to-[#BF5AF2]/5', isComingSoon: true }
             ].map((item, idx) => {
               const Icon = item.icon;
               return (
                 <button
                   key={`quick_${idx}`}
                   onClick={() => {
+                    if (item.isComingSoon) return;
                     if (item.path !== '#') navigate(item.path);
                   }}
                   style={{ animationDelay: `${idx * 50}ms` }}
-                  className="quick-icon-anim flex flex-col items-center gap-1.5 snap-center shrink-0 w-[56px] group transition-all duration-300 active:scale-95 hover:-translate-y-1"
+                  className={`quick-icon-anim flex flex-col items-center gap-1.5 snap-center shrink-0 w-[56px] group transition-all duration-300 ${item.isComingSoon ? 'opacity-50 cursor-not-allowed' : 'active:scale-95 hover:-translate-y-1'}`}
                 >
                   <div className="w-12 h-12 rounded-[14px] bg-[#111] border border-white/5 flex items-center justify-center group-hover:border-white/20 transition-all duration-300 shadow-md relative overflow-hidden group-hover:shadow-[0_0_15px_rgba(255,255,255,0.05)]">
                     <div className={`absolute inset-0 opacity-100 transition-opacity duration-300 ${item.bgClass}`} />
                     <div className="absolute inset-0 bg-white/0 group-hover:bg-white/5 transition-colors duration-300" />
-                    <Icon size={18} className={`${item.color} drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] group-hover:scale-110 transition-transform duration-300 z-10`} />
+                    <Icon size={18} className={`${item.color} drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] ${!item.isComingSoon && 'group-hover:scale-110'} transition-transform duration-300 z-10`} />
+                    {item.isComingSoon && (
+                      <div className="absolute -top-1 -right-1 z-20">
+                        <span className="bg-gradient-to-r from-gray-600 to-gray-500 text-white text-[6px] font-black uppercase px-1 rounded-sm shadow-md border border-gray-400">
+                          SOON
+                        </span>
+                      </div>
+                    )}
                   </div>
                   <span className="text-[9px] font-semibold text-gray-400 group-hover:text-white text-center leading-tight transition-colors duration-300">
                     {item.label}
