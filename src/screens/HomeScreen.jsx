@@ -45,6 +45,33 @@ const getRandomInRange = (min, max) => {
 };
 
 const HomeScreen = () => {
+  return (
+    <div className="min-h-screen bg-black pb-24 font-sans relative overflow-hidden flex flex-col items-center justify-center p-6">
+      <div className="absolute inset-0 bg-gradient-to-br from-[#30D158]/20 via-black to-[#0A84FF]/20 z-0"></div>
+      
+      <div className="relative z-10 bg-[#111]/80 backdrop-blur-xl border border-[#30D158]/50 rounded-3xl p-10 text-center shadow-[0_0_50px_rgba(48,209,88,0.3)]">
+        <div className="w-24 h-24 bg-[#30D158]/20 rounded-full flex items-center justify-center mx-auto mb-6 animate-bounce">
+          <svg className="w-12 h-12 text-[#30D158]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+          </svg>
+        </div>
+        
+        <h1 className="text-4xl font-black font-oswald text-white mb-2 tracking-wide uppercase">
+          App <span className="text-[#30D158]">Updated!</span>
+        </h1>
+        
+        <p className="text-gray-400 font-mono text-sm mb-6">
+          OTA Update Test Successful.
+        </p>
+
+        <div className="bg-black/50 border border-white/10 rounded-2xl p-4 inline-block">
+          <p className="text-[#FFD700] font-black text-xl">VERSION 1.0.1</p>
+          <p className="text-xs text-gray-500 mt-1">Build Code: 2</p>
+        </div>
+      </div>
+    </div>
+  );
+
   const navigate = useNavigate();
 
   // Avatar and Profile cache
