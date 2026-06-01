@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Smartphone, Download, AlertTriangle, Loader2 } from 'lucide-react';
 import { Filesystem, Directory } from '@capacitor/filesystem';
-import { FileOpener } from '@capacitor-community/file-opener';
+// import { FileOpener } from '@capacitor-community/file-opener';
 import { Capacitor } from '@capacitor/core';
 
 const AppUpdateModal = ({ updateData, onClose }) => {
@@ -50,6 +50,7 @@ const AppUpdateModal = ({ updateData, onClose }) => {
       // Give filesystem a moment
       setTimeout(async () => {
         try {
+          const { FileOpener } = await import('@capacitor-community/file-opener');
           await FileOpener.open({
             filePath: downloadRes.path,
             contentType: 'application/vnd.android.package-archive',
