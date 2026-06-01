@@ -475,6 +475,13 @@ const HomeScreen = () => {
         .group:hover .icon-star-anim {
           animation: starPulse 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         }
+        @keyframes quickIconEntrance {
+          0% { opacity: 0; transform: translateX(30px) scale(0.8); }
+          100% { opacity: 1; transform: translateX(0) scale(1); }
+        }
+        .quick-icon-anim {
+          animation: quickIconEntrance 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+        }
       `}</style>
       {/* Golden Grid Background Overlay */}
       <div className="fixed inset-0 z-0 pointer-events-none flex justify-center items-center">
@@ -607,7 +614,45 @@ const HomeScreen = () => {
           )}
         </section>
 
-        {/* --- 3. UNIFIED ACADEMIC DIRECTORY GRID (9 PREMIUM SECTIONS) --- */}
+        {/* --- 3. QUICK ACCESS HORIZONTAL SLIDER --- */}
+        <section className="mb-6 relative">
+          <div className="flex overflow-x-auto scroll-smooth snap-x snap-mandatory gap-3 hide-scrollbar relative z-10 px-2" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+            {[
+              { label: "Teacher's", icon: BookOpen, path: '/teachers-library', color: 'text-[#FFD700]', bgClass: 'bg-gradient-to-br from-[#FFD700]/20 to-[#FFD700]/5' },
+              { label: "Coaching", icon: Presentation, path: '/coaching', color: 'text-[#30D158]', bgClass: 'bg-gradient-to-br from-[#30D158]/20 to-[#30D158]/5' },
+              { label: "Crash", icon: Zap, path: '/crash', color: 'text-[#BF5AF2]', bgClass: 'bg-gradient-to-br from-[#BF5AF2]/20 to-[#BF5AF2]/5' },
+              { label: "PDFs", icon: FileText, path: '/pdf-zone', color: 'text-[#FF453A]', bgClass: 'bg-gradient-to-br from-[#FF453A]/20 to-[#FF453A]/5' },
+              { label: "Tests", icon: Trophy, path: '/test-zone', color: 'text-[#FFD700]', bgClass: 'bg-gradient-to-br from-[#FFD700]/20 to-[#FFD700]/5' },
+              { label: "Books", icon: Book, path: '/book-library', color: 'text-[#0A84FF]', bgClass: 'bg-gradient-to-br from-[#0A84FF]/20 to-[#0A84FF]/5' },
+              { label: "Mentors", icon: Target, path: '/mentorship', color: 'text-[#FFD700]', bgClass: 'bg-gradient-to-br from-[#FFD700]/20 to-[#FFD700]/5' },
+              { label: "Store", icon: Store, path: '/store', color: 'text-[#30D158]', bgClass: 'bg-gradient-to-br from-[#30D158]/20 to-[#30D158]/5' },
+              { label: "Notes", icon: Star, path: '#', color: 'text-[#BF5AF2]', bgClass: 'bg-gradient-to-br from-[#BF5AF2]/20 to-[#BF5AF2]/5' }
+            ].map((item, idx) => {
+              const Icon = item.icon;
+              return (
+                <button
+                  key={`quick_${idx}`}
+                  onClick={() => {
+                    if (item.path !== '#') navigate(item.path);
+                  }}
+                  style={{ animationDelay: `${idx * 50}ms` }}
+                  className="quick-icon-anim flex flex-col items-center gap-1.5 snap-center shrink-0 w-[56px] group transition-all duration-300 active:scale-95 hover:-translate-y-1"
+                >
+                  <div className="w-12 h-12 rounded-[14px] bg-[#111] border border-white/5 flex items-center justify-center group-hover:border-white/20 transition-all duration-300 shadow-md relative overflow-hidden group-hover:shadow-[0_0_15px_rgba(255,255,255,0.05)]">
+                    <div className={`absolute inset-0 opacity-100 transition-opacity duration-300 ${item.bgClass}`} />
+                    <div className="absolute inset-0 bg-white/0 group-hover:bg-white/5 transition-colors duration-300" />
+                    <Icon size={18} className={`${item.color} drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] group-hover:scale-110 transition-transform duration-300 z-10`} />
+                  </div>
+                  <span className="text-[9px] font-semibold text-gray-400 group-hover:text-white text-center leading-tight transition-colors duration-300">
+                    {item.label}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+
+        {/* --- 4. UNIFIED ACADEMIC DIRECTORY GRID (9 PREMIUM SECTIONS) --- */}
         <section className="mb-8 relative">
           {/* Background Ambient Glow Orbs */}
           <div className="absolute top-1/4 -left-12 w-48 h-48 rounded-full bg-[#FFD700]/5 blur-3xl pointer-events-none" style={{ animation: 'orbFloat 10s ease-in-out infinite' }} />
@@ -630,7 +675,7 @@ const HomeScreen = () => {
               { label: "Book Library", icon: Book, path: '/book-library', color: 'text-[#0A84FF]', bgClass: 'bg-[#0A84FF]', desc: "E-Books & Guides", iconClass: "icon-book-anim" },
               { label: "Mentorship", icon: Target, path: '/mentorship', color: 'text-[#FFD700]', bgClass: 'bg-[#FFD700]', desc: "1-on-1 Guidance", iconClass: "icon-target-anim" },
               { label: "Naino Store", icon: Store, path: '/store', color: 'text-[#30D158]', bgClass: 'bg-[#30D158]', desc: "Premium Material", iconClass: "icon-store-anim" },
-              { label: "Premium Notes", icon: Star, path: '#', color: 'text-[#BF5AF2]', bgClass: 'bg-[#BF5AF2]', desc: "Specials & Formulas", iconClass: "icon-star-anim" },
+              { label: "Premium Notes", icon: Star, path: '#', color: 'text-[#BF5AF2]', bgClass: 'bg-[#BF5AF2]', desc: "Coming Soon", iconClass: "icon-star-anim", isComingSoon: true },
               { label: "News", icon: Newspaper, path: '/news', color: 'text-[#FF453A]', bgClass: 'bg-[#FF453A]', desc: "Exam Updates", iconClass: "icon-file-anim", isNews: true },
               { label: "Community", icon: Users, path: '/community', color: 'text-[#0A84FF]', bgClass: 'bg-[#0A84FF]', desc: "Social Media Hub", iconClass: "icon-users-anim" },
             ].map((item, idx) => {
@@ -640,6 +685,7 @@ const HomeScreen = () => {
                 <button
                   key={idx}
                   onClick={() => { 
+                    if (item.isComingSoon) return; // Disable click
                     if (item.isNews) {
                       localStorage.setItem('naino_last_seen_news_time', Date.now().toString());
                       setHasUnreadNews(false);
@@ -647,7 +693,7 @@ const HomeScreen = () => {
                     if (item.path !== '#') navigate(item.path); 
                   }}
                   style={{ animationDelay: `${idx * 45}ms` }}
-                  className={`grid-card-anim group relative flex border border-white/5 rounded-2xl transition-all duration-300 active:scale-95 hover:border-[#FFD700]/30 hover:-translate-y-1 shadow-[0_4px_20px_rgba(0,0,0,0.4)] backdrop-blur-md ${
+                  className={`grid-card-anim group relative flex border border-white/5 rounded-2xl transition-all duration-300 ${item.isComingSoon ? 'opacity-70 cursor-not-allowed' : 'active:scale-95 hover:border-[#FFD700]/30 hover:-translate-y-1'} shadow-[0_4px_20px_rgba(0,0,0,0.4)] backdrop-blur-md ${
                     isWide 
                       ? 'col-span-3 flex-row items-center gap-4 px-5 py-3 bg-gradient-to-r from-[#111]/90 to-[#111]/45 min-h-[68px]' 
                       : 'flex-col items-center justify-between p-3 bg-[#111]/80 min-h-[105px]'
@@ -661,7 +707,7 @@ const HomeScreen = () => {
                     <Icon size={18} className={`${item.color} ${item.iconClass || ''} drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] z-10 transition-transform`} />
                   </div>
                   
-                  <div className={`flex flex-col ${isWide ? 'flex-1 min-w-0' : 'items-center text-center w-full'}`}>
+                  <div className={`flex flex-col ${isWide ? 'flex-1 min-w-0 text-left' : 'items-center text-center w-full'}`}>
                     <span className={`font-oswald font-bold text-white tracking-wide leading-tight truncate w-full ${isWide ? 'text-sm' : 'text-[11px]'}`}>
                       {item.label}
                     </span>
@@ -672,16 +718,25 @@ const HomeScreen = () => {
                   
                   {isWide && (
                     <ChevronRight size={16} className="text-gray-600 shrink-0 group-hover:text-white transition-colors" />
-                  )}    <div className="absolute top-1.5 right-1.5 w-1 h-1 rounded-full bg-white/10 group-hover:bg-[#FFD700] transition-colors" />
+                  )}    
+                  <div className="absolute top-1.5 right-1.5 w-1 h-1 rounded-full bg-white/10 group-hover:bg-[#FFD700] transition-colors" />
                   
                   {item.isNews && hasUnreadNews && (
                     <div className="absolute -top-1.5 -right-1.5 z-20">
                       <div className="relative flex items-center justify-center">
-                        <span className="absolute inset-0 bg-[#FF453A] rounded-full animate-ping opacity-60"></span>
-                        <span className="relative bg-gradient-to-tr from-[#FF453A] to-red-400 text-white text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full shadow-[0_0_15px_rgba(255,69,58,0.6)] border border-[#FF453A]/50">
-                          NEW
-                        </span>
+                         <span className="absolute inset-0 bg-[#FF453A] rounded-full animate-ping opacity-60"></span>
+                         <span className="relative bg-gradient-to-tr from-[#FF453A] to-red-400 text-white text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full shadow-[0_0_15px_rgba(255,69,58,0.6)] border border-[#FF453A]/50">
+                           NEW
+                         </span>
                       </div>
+                    </div>
+                  )}
+
+                  {item.isComingSoon && (
+                    <div className="absolute -top-1.5 -right-1.5 z-20">
+                      <span className="bg-gradient-to-r from-gray-600 to-gray-500 text-white text-[7px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full shadow-lg border border-gray-400">
+                        SOON
+                      </span>
                     </div>
                   )}
                 </button>
