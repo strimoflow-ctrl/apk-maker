@@ -1,16 +1,73 @@
-import React from 'react';
-import { Smartphone, Download, AlertTriangle } from 'lucide-react';
+import React, { useState } from 'react';
+import { Smartphone, Download, AlertTriangle, Loader2 } from 'lucide-react';
+import { Filesystem, Directory } from '@capacitor/filesystem';
+import { FileOpener } from '@capacitor-community/file-opener';
+import { Capacitor } from '@capacitor/core';
 
 const AppUpdateModal = ({ updateData, onClose }) => {
+  const [downloading, setDownloading] = useState(false);
+  const [progress, setProgress] = useState(0);
+
   if (!updateData) return null;
 
-  const handleUpdate = () => {
+  const handleUpdate = async () => {
     let url = updateData.apkUrl;
     if (!url.startsWith('http')) {
       // Use raw github user content or your Netlify proxy
       url = `https://nainoapi.netlify.app/${url}`;
     }
-    window.open(url, '_system');
+
+    // If not running natively on Android, fallback to browser
+    if (Capacitor.getPlatform() !== 'android') {
+      window.open(url, '_system');
+      return;
+    }
+
+    try {
+      setDownloading(true);
+      setProgress(0);
+
+      // Listen for download progress
+      const progressListener = await Filesystem.addListener('progress', (progressEvent) => {
+        if (progressEvent && progressEvent.bytes && progressEvent.contentLength) {
+          setProgress(Math.round((progressEvent.bytes / progressEvent.contentLength) * 100));
+        }
+      });
+
+      const fileName = `naino_update_v${updateData.latestVersionCode}.apk`;
+      
+      const downloadRes = await Filesystem.downloadFile({
+        url: url,
+        path: fileName,
+        directory: Directory.Cache,
+        progress: true
+      });
+
+      // Stop listening to progress
+      progressListener.remove();
+      setProgress(100);
+
+      // Give filesystem a moment
+      setTimeout(async () => {
+        try {
+          await FileOpener.open({
+            filePath: downloadRes.path,
+            contentType: 'application/vnd.android.package-archive',
+          });
+          setDownloading(false);
+        } catch (err) {
+          console.error('FileOpener Error:', err);
+          window.open(url, '_system');
+          setDownloading(false);
+        }
+      }, 500);
+
+    } catch (err) {
+      console.error('Download Error:', err);
+      // Fallback to browser download if filesystem fails
+      window.open(url, '_system');
+      setDownloading(false);
+    }
   };
 
   return (
@@ -39,12 +96,31 @@ const AppUpdateModal = ({ updateData, onClose }) => {
         <div className="flex flex-col gap-3">
           <button
             onClick={handleUpdate}
-            className="w-full bg-[#FFD700] hover:bg-white text-black font-bold py-4 rounded-xl flex items-center justify-center gap-2 transition-colors uppercase tracking-widest text-sm"
+            disabled={downloading}
+            className="w-full bg-[#FFD700] hover:bg-white text-black font-bold py-4 rounded-xl flex items-center justify-center gap-2 transition-colors uppercase tracking-widest text-sm relative overflow-hidden"
           >
-            <Download size={18} /> Update Now
+            {downloading && (
+              <div 
+                className="absolute left-0 top-0 bottom-0 bg-[#E6C200] transition-all duration-300"
+                style={{ width: `${progress}%` }}
+              ></div>
+            )}
+            
+            <div className="relative z-10 flex items-center gap-2">
+              {downloading ? (
+                <>
+                  <Loader2 size={18} className="animate-spin" /> 
+                  {progress > 0 ? `Downloading ${progress}%` : 'Starting...'}
+                </>
+              ) : (
+                <>
+                  <Download size={18} /> Update Now
+                </>
+              )}
+            </div>
           </button>
           
-          {!updateData.forceUpdate && (
+          {!updateData.forceUpdate && !downloading && (
             <button
               onClick={onClose}
               className="w-full bg-transparent hover:bg-white/5 text-gray-400 font-bold py-3 rounded-xl transition-colors uppercase tracking-wider text-xs"
