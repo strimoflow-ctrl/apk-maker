@@ -589,19 +589,19 @@ const App = () => {
   return (
     <AlertProvider>
       <DownloadProvider>
-        {showUpdateModal && (
-          <AppUpdateModal 
-            updateData={updateData} 
-            onClose={() => setShowUpdateModal(false)} 
-          />
-        )}
-        {!showUpdateModal && showPromoModal && (
-          <PromoPopupModal 
-            promoData={promoData} 
-            onClose={handleClosePromo} 
-          />
-        )}
         <Router>
+          {showUpdateModal && (
+            <AppUpdateModal 
+              updateData={updateData} 
+              onClose={() => setShowUpdateModal(false)} 
+            />
+          )}
+          {!showUpdateModal && showPromoModal && (
+            <PromoPopupModal 
+              promoData={promoData} 
+              onClose={handleClosePromo} 
+            />
+          )}
           <AppShell />
         </Router>
       </DownloadProvider>
