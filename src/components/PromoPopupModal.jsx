@@ -18,8 +18,7 @@ const PromoPopupModal = ({ promoData, onClose }) => {
   const getFullImageUrl = (path) => {
     if (!path) return '';
     if (path.startsWith('http')) return path;
-    const repo = import.meta.env.VITE_GITHUB_REPO || 'strimoflow-ctrl/Naino-App-Data';
-    return `https://raw.githubusercontent.com/${repo}/main/${path}`;
+    return `https://nainoapi.netlify.app/${path}`;
   };
 
   return (
