@@ -475,6 +475,10 @@ const App = () => {
       try {
         const updateRes = await fetchWithCache('/api/config/app_update.json', 'cache_app_update', 5 * 60 * 1000);
         if (updateRes && updateRes.latestVersionCode > APP_VERSION_CODE) {
+          const ignoredVersion = localStorage.getItem('naino_ignored_update_version');
+          if (ignoredVersion === String(updateRes.latestVersionCode)) {
+            return; // Skip showing if user ignored this specific version
+          }
           setUpdateData(updateRes);
           setShowUpdateModal(true);
         }
@@ -512,12 +516,21 @@ const App = () => {
     }, 1500);
   }, []);
 
-  const handleClosePromo = () => {
+  const handleClosePromo = (dontShowAgain) => {
     setShowPromoModal(false);
-    if (promoData && promoData.updatedAt) {
-      localStorage.setItem('naino_last_promo_seen', promoData.updatedAt.toDate().getTime().toString());
-    } else {
-      localStorage.setItem('naino_last_promo_seen', Date.now().toString());
+    if (dontShowAgain) {
+      if (promoData && promoData.updatedAt) {
+        localStorage.setItem('naino_last_promo_seen', promoData.updatedAt.toDate().getTime().toString());
+      } else {
+        localStorage.setItem('naino_last_promo_seen', Date.now().toString());
+      }
+    }
+  };
+
+  const handleCloseUpdate = (dontShowAgain) => {
+    setShowUpdateModal(false);
+    if (dontShowAgain && updateData) {
+      localStorage.setItem('naino_ignored_update_version', String(updateData.latestVersionCode));
     }
   };
 
@@ -593,7 +606,7 @@ const App = () => {
           {showUpdateModal && (
             <AppUpdateModal 
               updateData={updateData} 
-              onClose={() => setShowUpdateModal(false)} 
+              onClose={handleCloseUpdate} 
             />
           )}
           {!showUpdateModal && showPromoModal && (

@@ -65,6 +65,16 @@ export const fetchWithCache = async (url, cacheKey, ttlMs = 30 * 1000) => {
     const response = await fetch(resolvedUrl, { signal: controller.signal });
     clearTimeout(timeoutId);
     if (!response.ok) {
+      if (response.status === 404) {
+        try {
+          localStorage.removeItem(`offline_api_${cacheKey}`);
+          delete memoryCache[cacheKey];
+        } catch(e) {}
+        // Don't fallback to cache if it's explicitly 404
+        const err = new Error(`Resource not found (404) for ${url}`);
+        err.is404 = true;
+        throw err;
+      }
       throw new Error(`Failed to fetch from ${url}`);
     }
     
@@ -91,6 +101,12 @@ export const fetchWithCache = async (url, cacheKey, ttlMs = 30 * 1000) => {
     return data;
   } catch (err) {
     clearTimeout(timeoutId);
+    
+    if (err.is404) {
+      // It was explicitly deleted/not found, do not use offline cache
+      throw err;
+    }
+
     console.warn(`Network request failed or timed out for ${url}, trying offline cache...`, err);
     // 4. Fallback to localStorage if network fails or times out
     try {

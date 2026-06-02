@@ -40,3 +40,32 @@ export const decryptData = (text) => {
   // If both parsing and decryption fail, return the raw text
   return text;
 };
+
+/**
+ * Attempts to decrypt a plain string (like a video URL) using the app's secret key.
+ * If decryption fails, it returns the original string.
+ */
+export const decryptString = (text) => {
+  if (!text) return text;
+  
+  // If it starts with 'http' or '/', it's already a plain URL, don't try to decrypt
+  if (text.startsWith('http://') || text.startsWith('https://') || text.startsWith('/dl/')) {
+    return text;
+  }
+
+  try {
+    const secretKey = import.meta.env.VITE_APP_SECRET_KEY;
+    if (!secretKey) return text;
+
+    const bytes = CryptoJS.AES.decrypt(text, secretKey);
+    const decryptedText = bytes.toString(CryptoJS.enc.Utf8);
+    
+    if (decryptedText && (decryptedText.startsWith('http') || decryptedText.startsWith('/dl/'))) {
+      return decryptedText;
+    }
+  } catch (e) {
+    // Decryption failed, return original text
+  }
+
+  return text;
+};

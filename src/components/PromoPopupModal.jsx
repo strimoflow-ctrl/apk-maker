@@ -4,10 +4,13 @@ import { useNavigate } from 'react-router-dom';
 
 const PromoPopupModal = ({ promoData, onClose }) => {
   const navigate = useNavigate();
+  const [dontShowAgain, setDontShowAgain] = React.useState(false);
+  
   if (!promoData) return null;
 
   const handleAction = () => {
-    onClose(); // Close modal first
+    onClose(dontShowAgain); // Close modal first
+
     if (promoData.actionType === 'internal') {
       navigate(promoData.actionLink);
     } else {
@@ -29,7 +32,7 @@ const PromoPopupModal = ({ promoData, onClose }) => {
         
         {/* Close Button */}
         <button 
-          onClick={onClose}
+          onClick={() => onClose(dontShowAgain)}
           className="absolute top-4 right-4 z-20 w-8 h-8 bg-black/50 backdrop-blur-sm border border-white/20 rounded-full flex items-center justify-center text-white hover:bg-white hover:text-black transition-colors"
         >
           <X size={16} />
@@ -60,11 +63,28 @@ const PromoPopupModal = ({ promoData, onClose }) => {
 
           <button
             onClick={handleAction}
-            className="w-full bg-gradient-to-r from-[#FFD700] to-[#FDB931] hover:from-white hover:to-white text-black font-black py-4 px-6 rounded-xl flex items-center justify-center gap-2 transition-all transform hover:scale-[1.02] active:scale-95 uppercase tracking-widest text-sm shadow-[0_0_30px_rgba(255,215,0,0.3)]"
+            className="w-full bg-gradient-to-r from-[#FFD700] to-[#FDB931] hover:from-white hover:to-white text-black font-black py-4 px-6 rounded-xl flex items-center justify-center gap-2 transition-all transform hover:scale-[1.02] active:scale-95 uppercase tracking-widest text-sm shadow-[0_0_30px_rgba(255,215,0,0.3)] mb-4"
           >
             {promoData.buttonText || 'Click Here'}
             <ArrowRight size={18} />
           </button>
+          
+          <label className="flex items-center gap-2 cursor-pointer mt-2 group">
+            <div className="relative flex items-center justify-center w-5 h-5 rounded border border-gray-600 group-hover:border-[#FFD700] transition-colors">
+              <input
+                type="checkbox"
+                className="opacity-0 absolute inset-0 cursor-pointer w-full h-full z-10"
+                checked={dontShowAgain}
+                onChange={(e) => setDontShowAgain(e.target.checked)}
+              />
+              {dontShowAgain && (
+                <div className="w-3 h-3 bg-[#FFD700] rounded-sm transition-all" />
+              )}
+            </div>
+            <span className="text-xs text-gray-400 group-hover:text-gray-300 transition-colors">
+              Don't show again for this promo
+            </span>
+          </label>
         </div>
       </div>
     </div>

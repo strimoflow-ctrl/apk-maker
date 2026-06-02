@@ -3,6 +3,7 @@ import { Play, Pause, Volume2, VolumeX, Maximize, Minimize, Settings, FastForwar
 import { Capacitor } from '@capacitor/core';
 import { StatusBar } from '@capacitor/status-bar';
 import { logStudySession } from '../utils/progressTracker';
+import { decryptString } from '../utils/encryption';
 
 const VideoPlayer = ({ videoUrl, title, courseId, lectureId, courseTitle, onVideoEnd, onNext, onPrevious, coachingContext, coachingName, type }) => {
   const videoRef = useRef(null);
@@ -23,14 +24,18 @@ const VideoPlayer = ({ videoUrl, title, courseId, lectureId, courseTitle, onVide
 
   const getCleanVideoUrl = (url) => {
     if (!url) return '';
+    
+    // First, try to decrypt the URL if it's encrypted
+    const decryptedUrl = decryptString(url);
+
     // Handle relative /dl/ paths for Capacitor
-    if (url.startsWith('/dl/') && Capacitor.isNativePlatform()) {
-      return `https://filestreambot-1-jx2x.onrender.com${url}`;
+    if (decryptedUrl.startsWith('/dl/') && Capacitor.isNativePlatform()) {
+      return `https://filestreambot-1-jx2x.onrender.com${decryptedUrl}`;
     }
-    if (url.startsWith('http://') && !url.includes('localhost')) {
-      return url.replace('http://', 'https://');
+    if (decryptedUrl.startsWith('http://') && !decryptedUrl.includes('localhost')) {
+      return decryptedUrl.replace('http://', 'https://');
     }
-    return url;
+    return decryptedUrl;
   };
 
   const getYouTubeId = (url) => {
