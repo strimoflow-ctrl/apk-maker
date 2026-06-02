@@ -9,10 +9,7 @@ import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
 
 // Configure worker for react-pdf
-pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-  'pdfjs-dist/build/pdf.worker.min.mjs',
-  import.meta.url,
-).toString();
+pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
 const PdfViewerScreen = () => {
   const location = useLocation();
@@ -70,8 +67,10 @@ const PdfViewerScreen = () => {
         }
       } catch (e) { }
       if (file && typeof file === 'string' && file.startsWith('blob:')) {
-        URL.revokeObjectURL(file);
-        console.log("Revoked offline PDF blob URL:", file);
+        // We do not revoke the blob URL here because it breaks in React 18 Strict Mode
+        // and also causes issues if the parent component or router re-renders.
+        // URL.revokeObjectURL(file);
+        console.log("Unmounted PdfViewerScreen, keeping blob alive for React Strict Mode.");
       }
     };
   }, [file, navigate]);
