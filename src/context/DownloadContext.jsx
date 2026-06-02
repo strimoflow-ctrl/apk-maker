@@ -511,7 +511,7 @@ export const DownloadProvider = ({ children }) => {
         await notifyComplete(notifId, title);
         
       } else {
-        // Standard Download Logic (Existing)
+        // Standard Download Logic (Native background download for Capacitor)
         let proxyUrl = url;
         if (!isCapacitor) {
           if (url.includes('filestreambot-1-jx2x.onrender.com')) {
@@ -524,150 +524,227 @@ export const DownloadProvider = ({ children }) => {
             proxyUrl = url.replace('http://', 'https://');
           }
         }
-        
-        const headers = isResume && loaded > 0 ? { 'Range': `bytes=${loaded}-` } : {};
-        
-        // On native platforms (Capacitor), standard fetch calls are subject to CORS restrictions
-        // that hide the 'Content-Length' header unless exposed by the server. We bypass this
-        // by making a native HEAD request to get the exact file size.
-        if (isCapacitor && !total) {
-          try {
-            const headRes = await CapacitorHttp.request({
-              method: 'HEAD',
-              url: proxyUrl
-            });
-            const len = headRes.headers?.['content-length'] || headRes.headers?.['Content-Length'];
-            if (len) {
-              total = parseInt(len, 10);
-            }
-          } catch (e) {
-            console.warn("Native HEAD request failed to get content length:", e);
-          }
-        }
 
-        const response = await fetch(proxyUrl, { signal: controller.signal, headers });
-        
-        if (!response.ok && response.status !== 206) throw new Error(`HTTP error! status: ${response.status}`);
-        
-        const contentLength = response.headers.get('content-length');
-        if (!total) {
-          total = parseInt(contentLength, 10) || 0;
-        }
-        
-        const reader = response.body.getReader();
-        const chunks = existingBlob ? [existingBlob] : [];
-        chunksRef.current[downloadKey] = chunks;
-        let pendingBuffer = new Uint8Array(0);
-  
-        while (true) {
-          const { done, value } = await reader.read();
+        if (isCapacitor && !isResume) {
+          // Native Capacitor Download (NO LAG, NO RAM BLOAT)
+          let progressListener = null;
           
-          if (done) break;
-          
-          if (isCapacitor && fileUri) {
-            try {
-              const newBuffer = new Uint8Array(pendingBuffer.length + value.length);
-              newBuffer.set(pendingBuffer, 0);
-              newBuffer.set(value, pendingBuffer.length);
-              
-              const remainder = newBuffer.length % 3;
-              const bytesToEncode = newBuffer.length - remainder;
-              
-              if (bytesToEncode > 0) {
-                const chunkToEncode = newBuffer.subarray(0, bytesToEncode);
-                const base64Data = arrayBufferToBase64(chunkToEncode);
-                await Filesystem.appendFile({
-                  path: fileName,
-                  data: base64Data,
-                  directory: Directory.Data
-                });
+          try {
+            // Setup listener
+            progressListener = await Filesystem.addListener('progress', (status) => {
+              if (status.url === proxyUrl || status.url === proxyUrl.split('?')[0]) {
+                const currentPercent = (status.bytes / status.contentLength) * 100;
+                setActiveDownloads(prev => ({
+                  ...prev,
+                  [downloadKey]: { 
+                    progress: currentPercent, 
+                    loaded: status.bytes, 
+                    total: status.contentLength, 
+                    title,
+                    type,
+                    courseTitle,
+                    chapterName,
+                    courseId,
+                    itemId,
+                    url,
+                    status: 'downloading'
+                  }
+                }));
+
+                if (Math.floor(currentPercent) - lastPercentNotified >= 5) {
+                  lastPercentNotified = Math.floor(currentPercent);
+                  notifyProgress(notifId, title, currentPercent);
+                }
               }
-              
-              pendingBuffer = newBuffer.subarray(bytesToEncode);
-            } catch (fsErr) {
-              console.error("Failed to append chunk to filesystem:", fsErr);
-            }
-          } else {
-            chunks.push(value);
-          }
-          loaded += value.length;
-          
-          const currentPercent = total ? (loaded / total) * 100 : 0;
-          
-          setActiveDownloads(prev => ({
-            ...prev,
-            [downloadKey]: { 
-              progress: currentPercent, 
-              loaded, 
-              total, 
-              title,
-              type,
-              courseTitle,
-              chapterName,
-              courseId,
-              itemId,
-              url,
-              status: 'downloading'
-            }
-          }));
-
-          if (Math.floor(currentPercent) - lastPercentNotified >= 5) {
-            lastPercentNotified = Math.floor(currentPercent);
-            await notifyProgress(notifId, title, currentPercent);
-          }
-        }
-  
-        if (isCapacitor && fileUri && pendingBuffer.length > 0) {
-          try {
-            const base64Data = arrayBufferToBase64(pendingBuffer);
-            await Filesystem.appendFile({
-              path: fileName,
-              data: base64Data,
-              directory: Directory.Data
             });
-          } catch (fsErr) {
-            console.error("Failed to append final chunk to filesystem:", fsErr);
-          }
-        }
 
-        let finalSize = loaded;
-        let isZip = false;
-        if (!isCapacitor) {
-          const contentType = response.headers.get('content-type') || (type === 'pdf' ? 'application/pdf' : 'video/mp4');
-          const finalBlob = new Blob(chunks, { type: contentType });
+            // Start native download
+            const result = await Filesystem.downloadFile({
+              url: proxyUrl,
+              path: fileName,
+              directory: Directory.Data,
+              progress: true
+            });
+
+            // Remove listener
+            if (progressListener) {
+              progressListener.remove();
+            }
+
+            const headRes = await CapacitorHttp.request({ method: 'HEAD', url: proxyUrl });
+            const finalSize = parseInt(headRes.headers?.['content-length'] || headRes.headers?.['Content-Length'] || '0', 10);
+            
+            let isZip = false;
+            if (type === 'book' || type === 'pdf') {
+              try {
+                const readRes = await Filesystem.readFile({ path: fileName, directory: Directory.Data });
+                const base64Data = readRes.data.substring(0, 50);
+                const decoded = atob(base64Data);
+                if (decoded.startsWith('PK')) isZip = true;
+              } catch(e){}
+            }
+
+            await set(downloadKey, { isFilesystem: true, fileName: fileName });
+            
+            const meta = {
+              key: downloadKey, courseId, itemId, title, type, courseType, courseTitle, chapterName, size: finalSize, timestamp: new Date().getTime(), isZip
+            };
+            await set(`${downloadKey}_meta`, meta);
+      
+            await del(partialKey);
+            await del(`${partialKey}_meta`);
+            delete chunksRef.current[downloadKey];
+      
+            setCompletedDownloads(prev => [meta, ...prev]);
+            await notifyComplete(notifId, title);
+
+          } catch (error) {
+             if (progressListener) progressListener.remove();
+             throw error;
+          }
+
+        } else {
+          // Fallback manual chunked download for Web or Resuming
+          const headers = isResume && loaded > 0 ? { 'Range': `bytes=${loaded}-` } : {};
           
-          await set(downloadKey, finalBlob);
-          finalSize = finalBlob.size;
-          
-          if (type === 'book' || type === 'pdf') {
+          if (isCapacitor && !total) {
             try {
-              const magicBytes = await finalBlob.slice(0, 4).text();
-              if (magicBytes.startsWith('PK')) {
-                isZip = true;
+              const headRes = await CapacitorHttp.request({
+                method: 'HEAD',
+                url: proxyUrl
+              });
+              const len = headRes.headers?.['content-length'] || headRes.headers?.['Content-Length'];
+              if (len) {
+                total = parseInt(len, 10);
               }
             } catch (e) {
-              console.error("Failed to detect ZIP magic bytes:", e);
+              console.warn("Native HEAD request failed to get content length:", e);
             }
           }
-        } else {
-          await set(downloadKey, { isFilesystem: true, fileName: fileName });
-          if (type === 'book') {
-            isZip = true;
+
+          const response = await fetch(proxyUrl, { signal: controller.signal, headers });
+          
+          if (!response.ok && response.status !== 206) throw new Error(`HTTP error! status: ${response.status}`);
+          
+          const contentLength = response.headers.get('content-length');
+          if (!total) {
+            total = parseInt(contentLength, 10) || 0;
           }
+          
+          const reader = response.body.getReader();
+          const chunks = existingBlob ? [existingBlob] : [];
+          chunksRef.current[downloadKey] = chunks;
+          let pendingBuffer = new Uint8Array(0);
+    
+          while (true) {
+            const { done, value } = await reader.read();
+            
+            if (done) break;
+            
+            if (isCapacitor && fileUri) {
+              try {
+                const newBuffer = new Uint8Array(pendingBuffer.length + value.length);
+                newBuffer.set(pendingBuffer, 0);
+                newBuffer.set(value, pendingBuffer.length);
+                
+                const remainder = newBuffer.length % 3;
+                const bytesToEncode = newBuffer.length - remainder;
+                
+                if (bytesToEncode > 0) {
+                  const chunkToEncode = newBuffer.subarray(0, bytesToEncode);
+                  const base64Data = arrayBufferToBase64(chunkToEncode);
+                  await Filesystem.appendFile({
+                    path: fileName,
+                    data: base64Data,
+                    directory: Directory.Data
+                  });
+                }
+                
+                pendingBuffer = newBuffer.subarray(bytesToEncode);
+              } catch (fsErr) {
+                console.error("Failed to append chunk to filesystem:", fsErr);
+              }
+            } else {
+              chunks.push(value);
+            }
+            loaded += value.length;
+            
+            const currentPercent = total ? (loaded / total) * 100 : 0;
+            
+            setActiveDownloads(prev => ({
+              ...prev,
+              [downloadKey]: { 
+                progress: currentPercent, 
+                loaded, 
+                total, 
+                title,
+                type,
+                courseTitle,
+                chapterName,
+                courseId,
+                itemId,
+                url,
+                status: 'downloading'
+              }
+            }));
+
+            if (Math.floor(currentPercent) - lastPercentNotified >= 5) {
+              lastPercentNotified = Math.floor(currentPercent);
+              await notifyProgress(notifId, title, currentPercent);
+            }
+          }
+    
+          if (isCapacitor && fileUri && pendingBuffer.length > 0) {
+            try {
+              const base64Data = arrayBufferToBase64(pendingBuffer);
+              await Filesystem.appendFile({
+                path: fileName,
+                data: base64Data,
+                directory: Directory.Data
+              });
+            } catch (fsErr) {
+              console.error("Failed to append final chunk to filesystem:", fsErr);
+            }
+          }
+
+          let finalSize = loaded;
+          let isZip = false;
+          if (!isCapacitor) {
+            const contentType = response.headers.get('content-type') || (type === 'pdf' ? 'application/pdf' : 'video/mp4');
+            const finalBlob = new Blob(chunks, { type: contentType });
+            
+            await set(downloadKey, finalBlob);
+            finalSize = finalBlob.size;
+            
+            if (type === 'book' || type === 'pdf') {
+              try {
+                const magicBytes = await finalBlob.slice(0, 4).text();
+                if (magicBytes.startsWith('PK')) {
+                  isZip = true;
+                }
+              } catch (e) {
+                console.error("Failed to detect ZIP magic bytes:", e);
+              }
+            }
+          } else {
+            await set(downloadKey, { isFilesystem: true, fileName: fileName });
+            if (type === 'book') {
+              isZip = true;
+            }
+          }
+          
+          const meta = {
+            key: downloadKey, courseId, itemId, title, type, courseType, courseTitle, chapterName, size: finalSize, timestamp: new Date().getTime(), isZip
+          };
+          await set(`${downloadKey}_meta`, meta);
+    
+          await del(partialKey);
+          await del(`${partialKey}_meta`);
+          delete chunksRef.current[downloadKey];
+    
+          setCompletedDownloads(prev => [meta, ...prev]);
+          await notifyComplete(notifId, title);
         }
-        
-        const meta = {
-          key: downloadKey, courseId, itemId, title, type, courseType, courseTitle, chapterName, size: finalSize, timestamp: new Date().getTime(), isZip
-        };
-        await set(`${downloadKey}_meta`, meta);
-  
-        // Cleanup partials
-        await del(partialKey);
-        await del(`${partialKey}_meta`);
-        delete chunksRef.current[downloadKey];
-  
-        setCompletedDownloads(prev => [meta, ...prev]);
-        await notifyComplete(notifId, title);
       }
 
     } catch (error) {
@@ -803,6 +880,24 @@ export const DownloadProvider = ({ children }) => {
       const data = await get(downloadKey);
       if (data) {
         if (isCapacitor && data.isFilesystem) {
+          if (type === 'pdf') {
+            try {
+              const fileData = await Filesystem.readFile({
+                path: data.fileName,
+                directory: Directory.Data
+              });
+              const bstr = atob(fileData.data);
+              let n = bstr.length;
+              const u8arr = new Uint8Array(n);
+              while(n--){
+                u8arr[n] = bstr.charCodeAt(n);
+              }
+              const blob = new Blob([u8arr], { type: 'application/pdf' });
+              return URL.createObjectURL(blob);
+            } catch (err) {
+              console.error("Failed to read PDF to blob, falling back:", err);
+            }
+          }
           const uriResult = await Filesystem.getUri({
             path: data.fileName,
             directory: Directory.Data

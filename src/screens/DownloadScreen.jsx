@@ -18,9 +18,14 @@ const blobToBase64 = (blob) => new Promise((resolve, reject) => {
   reader.readAsDataURL(blob);
 });
 
-const saveFileToDevice = async (url, fileName) => {
+const saveFileToDevice = async (url, dl) => {
+  const ext = dl.type === 'pdf' ? '.pdf' : dl.type === 'book' ? '.zip' : '.mp4';
+  const displayFileName = `${dl.title}${ext}`.replace(/[/\\?%*:|"<>]/g, '-');
+  
   if (isCapacitor) {
     try {
+      const internalFileName = `${dl.type}_${dl.courseId}_${dl.itemId}`.replace(/[^a-zA-Z0-9_.-]/g, '_') + ext;
+      
       try {
         const perm = await Filesystem.checkPermissions();
         if (perm.publicStorage !== 'granted') {
@@ -30,26 +35,22 @@ const saveFileToDevice = async (url, fileName) => {
         console.warn("Storage permission request error:", err);
       }
 
-      const res = await fetch(url);
-      const blob = await res.blob();
-      const base64Data = (await blobToBase64(blob)).split(',')[1];
-      
-      await Filesystem.writeFile({
-        path: fileName,
-        data: base64Data,
-        directory: Directory.Downloads
+      await Filesystem.copy({
+        from: internalFileName,
+        directory: Directory.Data,
+        to: `NainoAcademy/${displayFileName}`,
+        toDirectory: Directory.Documents
       });
       return true;
     } catch (e) {
-      console.error("Failed to write to Downloads, trying Documents directory...", e);
+      console.error("Failed to copy to Documents/NainoAcademy, trying root Documents...", e);
       try {
-        const res = await fetch(url);
-        const blob = await res.blob();
-        const base64Data = (await blobToBase64(blob)).split(',')[1];
-        await Filesystem.writeFile({
-          path: fileName,
-          data: base64Data,
-          directory: Directory.Documents
+        const internalFileName = `${dl.type}_${dl.courseId}_${dl.itemId}`.replace(/[^a-zA-Z0-9_.-]/g, '_') + ext;
+        await Filesystem.copy({
+          from: internalFileName,
+          directory: Directory.Data,
+          to: displayFileName,
+          toDirectory: Directory.Documents
         });
         return true;
       } catch (err) {
@@ -60,7 +61,7 @@ const saveFileToDevice = async (url, fileName) => {
   } else {
     const a = document.createElement('a');
     a.href = url;
-    a.download = fileName;
+    a.download = displayFileName;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -220,12 +221,12 @@ const DownloadScreen = () => {
       navigate('/pdf', { state: { file: url, title: dl.title } });
     } else if (action === 'extract') {
       try {
-        await saveFileToDevice(url, `${dl.title}.zip`);
+        await saveFileToDevice(url, dl);
         setNotification({
           isOpen: true,
           title: "ZIP Exported",
           message: isCapacitor 
-            ? `"${dl.title}.zip" has been saved to your device's Downloads folder.` 
+            ? `"${dl.title}.zip" has been saved to your device's Documents folder.` 
             : "This ZIP module has been exported to your phone's Downloads folder. Please extract it using File Manager.",
           type: "zip"
         });
@@ -236,12 +237,12 @@ const DownloadScreen = () => {
       if (url && url.startsWith('blob:')) URL.revokeObjectURL(url);
     } else if (action === 'save') {
       try {
-        await saveFileToDevice(url, `${dl.title}.pdf`);
+        await saveFileToDevice(url, dl);
         setNotification({
           isOpen: true,
           title: "Saved to Phone",
           message: isCapacitor
-            ? `"${dl.title}.pdf" has been saved to your device's Downloads folder.`
+            ? `"${dl.title}.pdf" has been saved to your device's Documents folder.`
             : `"${dl.title}" has been saved to your phone's Downloads folder.`,
           type: "success"
         });
