@@ -81,16 +81,20 @@ const LockScreen = ({ onUnlock }) => {
 
   const handleKeyDown = (e, index) => {
     if (e.key === 'Backspace') {
-      const newPasscode = [...passcode];
-      newPasscode[index] = '';
-      setPasscode(newPasscode);
+      if (passcode[index] === '' && index > 0) {
+        // If current is empty, move back and clear previous
+        const newPasscode = [...passcode];
+        newPasscode[index - 1] = '';
+        setPasscode(newPasscode);
+        inputsRef.current[index - 1]?.focus();
+      } else {
+        // Clear current
+        const newPasscode = [...passcode];
+        newPasscode[index] = '';
+        setPasscode(newPasscode);
+      }
       setError(false);
       setErrorMessage('');
-      
-      // Auto focus previous
-      if (index > 0) {
-        inputsRef.current[index - 1]?.focus();
-      }
     }
   };
 
