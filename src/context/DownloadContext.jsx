@@ -318,7 +318,7 @@ export const DownloadProvider = ({ children }) => {
             currentPath.includes('/test-zone') ? 'test-zone' :
               currentPath.includes('/book-library') ? 'book-library' : 'other';
 
-    if (activeDownloads[downloadKey] && activeDownloads[downloadKey].status === 'downloading') return;
+    if (activeDownloadsRef.current[downloadKey] && activeDownloadsRef.current[downloadKey].status === 'downloading') return;
     const exists = await get(downloadKey);
     if (exists) return;
 
@@ -375,10 +375,7 @@ export const DownloadProvider = ({ children }) => {
       await del(`${partialKey}_meta`);
     }
 
-    setActiveDownloads(prev => ({
-      ...prev,
-      [downloadKey]: { progress: total ? (loaded / total) * 100 : 0, loaded, total, title, type, courseType, courseTitle, chapterName, courseId, itemId, url, status: 'downloading' }
-    }));
+    updateActiveDownload(downloadKey, { progress: total ? (loaded / total) * 100 : 0, loaded, total, title, type, courseType, courseTitle, chapterName, courseId, itemId, url, status: 'downloading' });
 
     const ext = type === 'pdf' ? '.pdf' : type === 'book' ? '.zip' : '.mp4';
     const fileName = `${type}_${courseId}_${itemId}`.replace(/[^a-zA-Z0-9_.-]/g, '_') + ext;
@@ -484,9 +481,7 @@ export const DownloadProvider = ({ children }) => {
             // Throttle state updates to at most once per second to prevent UI lag
             if (now - lastUpdateTime > 1000 || i === resolvedUrls.length - 1) {
               const currentPercent = ((i + 1) / total) * 100;
-              setActiveDownloads(prev => ({
-                ...prev,
-                [downloadKey]: {
+              updateActiveDownload(downloadKey, {
                   progress: currentPercent,
                   loaded: totalBytesLoaded,
                   total: 0,
@@ -501,8 +496,7 @@ export const DownloadProvider = ({ children }) => {
                   itemId,
                   url,
                   status: 'downloading'
-                }
-              }));
+              });
               lastUpdateTime = now;
 
               if (Math.floor(currentPercent) - lastPercentNotified >= 5) {
@@ -583,9 +577,7 @@ export const DownloadProvider = ({ children }) => {
                 const now = Date.now();
                 // Throttle React state updates to 1 per second to prevent freezing the JS thread!
                 if (now - lastUpdateTime > 1000 || currentPercent === 100) {
-                  setActiveDownloads(prev => ({
-                    ...prev,
-                    [downloadKey]: {
+                  updateActiveDownload(downloadKey, {
                       progress: currentPercent,
                       loaded: status.bytes,
                       total: status.contentLength,
@@ -597,8 +589,7 @@ export const DownloadProvider = ({ children }) => {
                       itemId,
                       url,
                       status: 'downloading'
-                    }
-                  }));
+                  });
                   lastUpdateTime = now;
                 }
 
@@ -722,9 +713,7 @@ export const DownloadProvider = ({ children }) => {
 
             const currentPercent = total ? (loaded / total) * 100 : 0;
 
-            setActiveDownloads(prev => ({
-              ...prev,
-              [downloadKey]: {
+            updateActiveDownload(downloadKey, {
                 progress: currentPercent,
                 loaded,
                 total,
@@ -736,8 +725,7 @@ export const DownloadProvider = ({ children }) => {
                 itemId,
                 url,
                 status: 'downloading'
-              }
-            }));
+            });
 
             if (Math.floor(currentPercent) - lastPercentNotified >= 5) {
               lastPercentNotified = Math.floor(currentPercent);
@@ -831,27 +819,20 @@ export const DownloadProvider = ({ children }) => {
 
         pausedKeysRef.current[downloadKey] = true;
 
-        setActiveDownloads(prev => {
-          if (!prev[downloadKey]) return prev;
-          return {
-            ...prev,
-            [downloadKey]: {
-              ...prev[downloadKey],
-              status: 'paused',
-              progress: total ? ((isHLS ? segmentsDownloaded : loaded) / total) * 100 : 0
-            }
-          };
-        });
+        if (activeDownloadsRef.current[downloadKey]) {
+          updateActiveDownload(downloadKey, {
+            status: 'paused',
+            progress: total ? ((isHLS ? segmentsDownloaded : loaded) / total) * 100 : 0
+          });
+        }
       }
     } finally {
       delete abortControllers.current[downloadKey];
       const isPaused = pausedKeysRef.current[downloadKey];
-      setActiveDownloads(prev => {
-        if (isPaused || !prev[downloadKey] || prev[downloadKey].status === 'paused') return prev;
-        const next = { ...prev };
-        delete next[downloadKey];
-        return next;
-      });
+      const prev = activeDownloadsRef.current[downloadKey];
+      if (!isPaused && prev && prev.status !== 'paused') {
+        updateActiveDownload(downloadKey, null, true);
+      }
     }
   };
 
@@ -864,13 +845,9 @@ export const DownloadProvider = ({ children }) => {
     pausedKeysRef.current[downloadKey] = true;
 
     // 1. Mark as paused in state FIRST
-    setActiveDownloads(prev => {
-      if (!prev[downloadKey]) return prev;
-      return {
-        ...prev,
-        [downloadKey]: { ...prev[downloadKey], status: 'paused' }
-      };
-    });
+    if (activeDownloadsRef.current[downloadKey]) {
+      updateActiveDownload(downloadKey, { status: 'paused' });
+    }
 
     // 2. Abort the active fetch
     if (abortControllers.current[downloadKey]) {
@@ -879,7 +856,7 @@ export const DownloadProvider = ({ children }) => {
     }
 
     // 3. Save current progress to IDB
-    const state = activeDownloads[downloadKey];
+    const state = activeDownloadsRef.current[downloadKey];
     if (state) {
       await savePartialProgress(
         downloadKey,
