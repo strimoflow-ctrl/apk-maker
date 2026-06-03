@@ -1,7 +1,64 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Target, FileText, CheckCircle2, Search, PlayCircle, DownloadCloud, Loader2 } from 'lucide-react';
-import { useDownload } from '../context/DownloadContext';
+import { useDownload, useDownloadProgress } from '../context/DownloadContext';
+
+const TestZoneItem = ({ test, courseId, type, isDownloaded, isDownloading, handleTestClick }) => {
+  const itemId = test.title;
+  const downloadKey = `naino_offline_${type}_${courseId}_${itemId}`;
+  const isItemDownloaded = isDownloaded(type, courseId, itemId);
+  const isItemDownloading = isDownloading(type, courseId, itemId);
+  const isPdf = test.type === 'file' || test.link.toLowerCase().endsWith('.pdf') || test.link.includes('filestreambot');
+  
+  const progressData = useDownloadProgress(downloadKey);
+  const progress = progressData?.progress || 0;
+
+  return (
+    <div 
+      onClick={() => handleTestClick(test)}
+      className="group bg-[#0a0a0a] border border-white/5 hover:border-[#FFD700]/30 rounded-xl p-4 flex items-center justify-between cursor-pointer transition-all relative overflow-hidden"
+    >
+      {/* Background Progress Bar */}
+      {isItemDownloading && (
+         <div 
+           className="absolute top-0 left-0 bottom-0 bg-[#FFD700]/10 transition-all duration-300"
+           style={{ width: `${progress}%` }}
+         />
+      )}
+      
+      <div className="flex items-center gap-4 min-w-0 relative z-10">
+        <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${isPdf ? 'bg-red-500/10 text-red-500' : 'bg-blue-500/10 text-blue-500'}`}>
+          {isPdf ? <FileText size={18} /> : <PlayCircle size={18} />}
+        </div>
+        <div className="min-w-0">
+          <h4 className="font-semibold text-white text-sm md:text-base truncate group-hover:text-[#FFD700] transition-colors">
+            {test.title}
+          </h4>
+          <p className="text-xs text-gray-500 uppercase tracking-wider font-bold mt-1">
+            {isItemDownloading ? `Downloading: ${Math.round(progress)}%` : isItemDownloaded ? 'Downloaded • Ready to View' : isPdf ? 'PDF / Solution' : 'Interactive HTML Test'}
+          </p>
+        </div>
+      </div>
+      <div className="shrink-0 ml-4 relative z-10">
+        {isItemDownloading ? (
+          <div className="flex items-center justify-center w-8 h-8 rounded-full bg-[#FFD700]/20 text-[#FFD700]">
+             <Loader2 size={16} className="animate-spin" />
+          </div>
+        ) : isItemDownloaded ? (
+          <div className="flex items-center justify-center w-8 h-8 rounded-full bg-green-500/20 text-green-500">
+             <CheckCircle2 size={18} />
+          </div>
+        ) : isPdf ? (
+           <div className="flex items-center justify-center w-8 h-8 rounded-full bg-white/5 text-white/40 group-hover:bg-[#FFD700]/20 group-hover:text-[#FFD700] transition-colors">
+             <DownloadCloud size={16} />
+           </div>
+        ) : (
+          <CheckCircle2 size={20} className="text-white/10 group-hover:text-[#FFD700]/50 transition-colors" />
+        )}
+      </div>
+    </div>
+  );
+};
 import NotificationModal from '../components/NotificationModal';
 import { fetchWithCache } from '../utils/api';
 
@@ -14,7 +71,7 @@ const TestZoneDetailScreen = () => {
   const [activeCategory, setActiveCategory] = useState(0);
   const [notification, setNotification] = useState({ isOpen: false, title: '', message: '', type: 'success' });
 
-  const { downloadFile, isDownloaded, getOfflineFileUrl, isDownloading, activeDownloads } = useDownload();
+  const { downloadFile, isDownloaded, getOfflineFileUrl, isDownloading } = useDownload();
 
   useEffect(() => {
     const fetchDetail = async () => {
@@ -169,64 +226,17 @@ const TestZoneDetailScreen = () => {
 
           <div className="grid grid-cols-1 gap-3">
             {filteredTests.length > 0 ? (
-              filteredTests.map((test, idx) => {
-                const isPdf = test.type === 'file' || test.link.toLowerCase().endsWith('.pdf') || test.link.includes('filestreambot');
-                
-                const courseId = 'testzone';
-                const itemId = test.title;
-                const type = 'pdf';
-                const downloadKey = `naino_offline_${type}_${courseId}_${itemId}`;
-                const isItemDownloaded = isDownloaded(type, courseId, itemId);
-                const isItemDownloading = isDownloading(type, courseId, itemId);
-                const progress = activeDownloads[downloadKey]?.progress || 0;
-
-                return (
-                  <div 
-                    key={idx}
-                    onClick={() => handleTestClick(test)}
-                    className="group bg-[#0a0a0a] border border-white/5 hover:border-[#FFD700]/30 rounded-xl p-4 flex items-center justify-between cursor-pointer transition-all relative overflow-hidden"
-                  >
-                    {/* Background Progress Bar */}
-                    {isItemDownloading && (
-                       <div 
-                         className="absolute top-0 left-0 bottom-0 bg-[#FFD700]/10 transition-all duration-300"
-                         style={{ width: `${progress}%` }}
-                       />
-                    )}
-                    
-                    <div className="flex items-center gap-4 min-w-0 relative z-10">
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${isPdf ? 'bg-red-500/10 text-red-500' : 'bg-blue-500/10 text-blue-500'}`}>
-                        {isPdf ? <FileText size={18} /> : <PlayCircle size={18} />}
-                      </div>
-                      <div className="min-w-0">
-                        <h4 className="font-semibold text-white text-sm md:text-base truncate group-hover:text-[#FFD700] transition-colors">
-                          {test.title}
-                        </h4>
-                        <p className="text-xs text-gray-500 uppercase tracking-wider font-bold mt-1">
-                          {isItemDownloading ? `Downloading: ${Math.round(progress)}%` : isItemDownloaded ? 'Downloaded • Ready to View' : isPdf ? 'PDF / Solution' : 'Interactive HTML Test'}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="shrink-0 ml-4 relative z-10">
-                      {isItemDownloading ? (
-                        <div className="flex items-center justify-center w-8 h-8 rounded-full bg-[#FFD700]/20 text-[#FFD700]">
-                           <Loader2 size={16} className="animate-spin" />
-                        </div>
-                      ) : isItemDownloaded ? (
-                        <div className="flex items-center justify-center w-8 h-8 rounded-full bg-green-500/20 text-green-500">
-                           <CheckCircle2 size={18} />
-                        </div>
-                      ) : isPdf ? (
-                         <div className="flex items-center justify-center w-8 h-8 rounded-full bg-white/5 text-white/40 group-hover:bg-[#FFD700]/20 group-hover:text-[#FFD700] transition-colors">
-                           <DownloadCloud size={16} />
-                         </div>
-                      ) : (
-                        <CheckCircle2 size={20} className="text-white/10 group-hover:text-[#FFD700]/50 transition-colors" />
-                      )}
-                    </div>
-                  </div>
-                );
-              })
+              filteredTests.map((test, idx) => (
+                <TestZoneItem 
+                  key={idx}
+                  test={test}
+                  courseId="testzone"
+                  type="pdf"
+                  isDownloaded={isDownloaded}
+                  isDownloading={isDownloading}
+                  handleTestClick={handleTestClick}
+                />
+              ))
             ) : (
               <div className="text-center py-12 text-gray-500">
                 No tests found matching your search.

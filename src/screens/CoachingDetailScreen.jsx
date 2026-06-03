@@ -1,9 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { Virtuoso } from 'react-virtuoso';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Home, PlayCircle, FileText, Download, CheckCircle, Loader2 } from 'lucide-react';
 import { fetchWithCache } from '../utils/api';
 import VideoPlayer from '../components/VideoPlayer';
-import { useDownload } from '../context/DownloadContext';
+import { useDownload, useDownloadProgress } from '../context/DownloadContext';
+
+const DownloadProgressText = ({ downloadKey }) => {
+  const progressData = useDownloadProgress(downloadKey);
+  return <>{Math.round(progressData?.progress || 0)}%</>;
+};
 import SaveButton from '../components/SaveButton';
 
 const CoachingDetailScreen = () => {
@@ -39,32 +45,23 @@ const CoachingDetailScreen = () => {
     };
   }, [offlineVideoUrl]);
 
-  const activeLectureRef = useRef(null);
-  const lectureListContainerRef = useRef(null);
+  const virtuosoRef = useRef(null);
   const hasAutoResumed = useRef(false);
 
-  const { downloadFile, isDownloaded, isDownloading, activeDownloads, getOfflineFileUrl } = useDownload();
+  const { downloadFile, isDownloaded, isDownloading, getOfflineFileUrl } = useDownload();
 
-  // Auto-scroll to active lecture within the lecture list container
+  // Auto-scroll to active lecture
   useEffect(() => {
-    if (activeLectureRef.current && lectureListContainerRef.current) {
+    if (virtuosoRef.current && activeLectureIndex !== -1) {
       setTimeout(() => {
-        const container = lectureListContainerRef.current;
-        const element = activeLectureRef.current;
-        
-        // Calculate the relative offset of the element within the container
-        const containerTop = container.getBoundingClientRect().top;
-        const elementTop = element.getBoundingClientRect().top;
-        const relativeTop = elementTop - containerTop;
-        
-        // Scroll only the container
-        container.scrollTo({
-          top: container.scrollTop + relativeTop - (container.clientHeight / 2) + (element.clientHeight / 2),
+        virtuosoRef.current.scrollToIndex({
+          index: activeLectureIndex,
+          align: 'center',
           behavior: 'smooth'
         });
       }, 300);
     }
-  }, [activeLecture, selectedChapter]);
+  }, [activeLecture, selectedChapter, activeLectureIndex]);
 
   // Fetch coaching info if not passed via state
   useEffect(() => {
@@ -602,17 +599,21 @@ const CoachingDetailScreen = () => {
       </div>
 
       {/* Lectures List */}
-      <div ref={lectureListContainerRef} className="flex-1 overflow-y-auto custom-scrollbar pb-8 bg-[#181818]">
-        <div className="max-w-5xl mx-auto">
-          {selectedChapter.lectures?.map((lecture, idx) => {
-            const isPlaying = activeLecture === lecture;
+      <div className="flex-1 bg-[#181818] relative">
+        <div className="absolute inset-0 max-w-5xl mx-auto w-full">
+          {selectedChapter.lectures && selectedChapter.lectures.length > 0 ? (
+            <Virtuoso
+              ref={virtuosoRef}
+              style={{ height: '100%' }}
+              data={selectedChapter.lectures}
+              initialTopMostItemIndex={activeLectureIndex > 0 ? activeLectureIndex : 0}
+              itemContent={(idx, lecture) => {
+                const isPlaying = activeLecture === lecture;
 
-            return (
-              <div
-                key={idx}
-                ref={isPlaying ? activeLectureRef : null}
-                className={`p-4 border-b flex flex-col gap-2 transition-colors ${isPlaying ? 'bg-white/10 border-[#FFD700]/30' : 'border-white/5 hover:bg-white/5'}`}
-              >
+                return (
+                  <div
+                    className={`p-4 border-b flex flex-col gap-2 transition-colors ${isPlaying ? 'bg-white/10 border-[#FFD700]/30' : 'border-white/5 hover:bg-white/5'}`}
+                  >
                 <div className="flex justify-between items-start">
                   <h4 className="text-white text-sm font-semibold">Lecture {(idx + 1).toString().padStart(2, '0')}</h4>
                   <div className="flex items-center gap-2">
@@ -668,7 +669,7 @@ const CoachingDetailScreen = () => {
                   ) : isDownloading('video', coachingId, lecture.name) ? (
                     <button disabled className="shrink-0 px-3 py-1.5 rounded text-xs font-bold border border-[#FFD700] text-[#FFD700] flex items-center gap-1">
                       <Loader2 size={14} className="animate-spin" /> 
-                      {Math.round(activeDownloads[`naino_offline_video_${coachingId}_${lecture.name}`]?.progress || 0)}%
+                      <DownloadProgressText downloadKey={`naino_offline_video_${coachingId}_${lecture.name}`} />
                     </button>
                   ) : (
                     <button 
@@ -681,6 +682,25 @@ const CoachingDetailScreen = () => {
 
                   {lecture.notes && (
                     <>
+                      {/* PDF Download Button */}
+                      {isDownloaded('pdf', coachingId, lecture.name) ? (
+                        <button disabled className="shrink-0 px-3 py-1.5 rounded text-xs font-bold border border-green-500 text-green-500 flex items-center gap-1 opacity-70">
+                          <CheckCircle size={14} /> SAVED
+                        </button>
+                      ) : isDownloading('pdf', coachingId, lecture.name) ? (
+                        <button disabled className="shrink-0 px-3 py-1.5 rounded text-xs font-bold border border-[#FFD700] text-[#FFD700] flex items-center gap-1">
+                          <Loader2 size={14} className="animate-spin" /> 
+                          <DownloadProgressText downloadKey={`naino_offline_pdf_${coachingId}_${lecture.name}`} />
+                        </button>
+                      ) : (
+                        <button 
+                          onClick={() => downloadFile('pdf', coachingId, lecture.name, lecture.notes, `${lecture.name} Notes`, coachingData?.coachingName || coaching?.title, selectedChapter?.chapter || selectedChapter?.name)}
+                          className="shrink-0 px-3 py-1.5 rounded text-xs font-bold border border-white/20 text-white hover:bg-white/10 transition-colors flex items-center gap-1"
+                        >
+                          <Download size={14} /> PDF
+                        </button>
+                      )}
+
                       <button
                         onClick={async () => {
                           const offlinePdf = await getOfflineFileUrl('pdf', coachingId, lecture.name);
@@ -695,26 +715,14 @@ const CoachingDetailScreen = () => {
                       >
                         <FileText size={14} /> VIEW PDF
                       </button>
-
-                      {/* PDF Download Button */}
-                      {!isDownloaded('pdf', coachingId, lecture.name) && !isDownloading('pdf', coachingId, lecture.name) && (
-                        <button 
-                          onClick={() => downloadFile('pdf', coachingId, lecture.name, lecture.notes, `${lecture.name} Notes`, coachingData?.coachingName || coaching?.title, selectedChapter?.chapter || selectedChapter?.name)}
-                          className="shrink-0 px-3 py-1.5 rounded text-xs font-bold border border-white/20 text-white hover:bg-white/10 transition-colors flex items-center gap-1"
-                        >
-                          <Download size={14} /> PDF
-                        </button>
-                      )}
-                      
-                      {isDownloading('pdf', coachingId, lecture.name) && (
-                        <span className="text-xs text-[#FFD700] animate-pulse">Downloading...</span>
-                      )}
                     </>
                   )}
                 </div>
               </div>
-            );
-          })}
+                );
+              }}
+            />
+          ) : null}
         </div>
       </div>
       

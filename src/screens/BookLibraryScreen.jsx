@@ -1,7 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, BookOpen, Download, ExternalLink, Loader2, Check, Lock } from 'lucide-react';
-import { useDownload } from '../context/DownloadContext';
+import { useDownload, useDownloadProgress } from '../context/DownloadContext';
+
+const DownloadProgressText = ({ downloadKey }) => {
+  const progressData = useDownloadProgress(downloadKey);
+  return <>{Math.round(progressData?.progress || 0)}%</>;
+};
 import NotificationModal from '../components/NotificationModal';
 import SaveButton from '../components/SaveButton';
 import PremiumModal from '../components/PremiumModal';
@@ -10,7 +15,7 @@ import { isItemLocked } from '../utils/premiumLock';
 
 const BookLibraryScreen = () => {
   const navigate = useNavigate();
-  const { downloadFile, activeDownloads, isDownloaded, getOfflineFileUrl, isDownloading } = useDownload();
+  const { downloadFile, isDownloaded, getOfflineFileUrl, isDownloading } = useDownload();
   const [books, setBooks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -164,12 +169,10 @@ const BookLibraryScreen = () => {
                     >
                       {isItemLocked(book) ? (
                          <><Lock size={14} /> Locked</>
-                      ) : activeDownloads[`naino_offline_book_library_${book.id}`] ? (
-                        activeDownloads[`naino_offline_book_library_${book.id}`].progress === 100 ? (
-                          <><Check size={14} /> Open</>
-                        ) : (
-                          <><Loader2 size={14} className="animate-spin" /> {Math.round(activeDownloads[`naino_offline_book_library_${book.id}`].progress)}%</>
-                        )
+                      ) : isDownloading('book', 'library', book.id) ? (
+                        <><Loader2 size={14} className="animate-spin" /> <DownloadProgressText downloadKey={`naino_offline_book_library_${book.id}`} /></>
+                      ) : isDownloaded('book', 'library', book.id) ? (
+                        <><Check size={14} /> Open</>
                       ) : (
                         <><Download size={14} /> Download</>
                       )}

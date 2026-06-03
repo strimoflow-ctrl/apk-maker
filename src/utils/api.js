@@ -1,4 +1,5 @@
 import { decryptData } from './encryption';
+import { get, set, del } from 'idb-keyval';
 
 const memoryCache = {};
 
@@ -14,6 +15,28 @@ try {
   keysToRemove.forEach(k => sessionStorage.removeItem(k));
 } catch(e) {}
 
+// Async Migration: move offline_api_ keys from localStorage to IndexedDB
+setTimeout(async () => {
+  try {
+    const keysToMigrate = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith('offline_api_')) {
+        keysToMigrate.push(key);
+      }
+    }
+    for (const key of keysToMigrate) {
+      const value = localStorage.getItem(key);
+      if (value) {
+        await set(key, value);
+        localStorage.removeItem(key);
+      }
+    }
+  } catch (e) {
+    console.warn("Migration to IndexedDB failed:", e);
+  }
+}, 1000);
+
 export const resolveApiUrl = (url) => {
   if (url.startsWith('/api/')) {
     return `https://nainoapi.netlify.app/${url.slice(5)}`;
@@ -25,10 +48,10 @@ export const resolveApiUrl = (url) => {
 };
 
 export const fetchWithCache = async (url, cacheKey, ttlMs = 30 * 1000) => {
-  // 1. If navigator detects offline, return localStorage cache instantly
+  // 1. If navigator detects offline, return IndexedDB cache instantly
   if (typeof navigator !== 'undefined' && !navigator.onLine) {
     try {
-      const cachedRaw = localStorage.getItem(`offline_api_${cacheKey}`);
+      const cachedRaw = await get(`offline_api_${cacheKey}`);
       if (cachedRaw) {
         const data = decryptData(cachedRaw);
         return data;
@@ -54,8 +77,12 @@ export const fetchWithCache = async (url, cacheKey, ttlMs = 30 * 1000) => {
 
   const resolvedUrl = resolveApiUrl(url);
   
-  // Set fetch timeout based on whether cache exists
-  const hasCache = typeof localStorage !== 'undefined' && !!localStorage.getItem(`offline_api_${cacheKey}`);
+  // Set fetch timeout based on whether cache exists in IndexedDB
+  let hasCache = false;
+  try {
+    hasCache = !!(await get(`offline_api_${cacheKey}`));
+  } catch (e) {}
+
   const timeoutMs = hasCache ? 1500 : 10000; // 1.5s timeout if cache exists, 10s otherwise
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
@@ -67,7 +94,7 @@ export const fetchWithCache = async (url, cacheKey, ttlMs = 30 * 1000) => {
     if (!response.ok) {
       if (response.status === 404) {
         try {
-          localStorage.removeItem(`offline_api_${cacheKey}`);
+          await del(`offline_api_${cacheKey}`);
           delete memoryCache[cacheKey];
         } catch(e) {}
         // Don't fallback to cache if it's explicitly 404
@@ -91,9 +118,9 @@ export const fetchWithCache = async (url, cacheKey, ttlMs = 30 * 1000) => {
       console.warn('Error saving to memory cache:', e);
     }
 
-    // Save encrypted rawText to localStorage for offline fallback
+    // Save encrypted rawText to IndexedDB for offline fallback
     try {
-      localStorage.setItem(`offline_api_${cacheKey}`, rawText);
+      await set(`offline_api_${cacheKey}`, rawText);
     } catch (e) {
       console.warn('Error saving to offline cache:', e);
     }
@@ -108,9 +135,9 @@ export const fetchWithCache = async (url, cacheKey, ttlMs = 30 * 1000) => {
     }
 
     console.warn(`Network request failed or timed out for ${url}, trying offline cache...`, err);
-    // 4. Fallback to localStorage if network fails or times out
+    // 4. Fallback to IndexedDB if network fails or times out
     try {
-      const cachedRaw = localStorage.getItem(`offline_api_${cacheKey}`);
+      const cachedRaw = await get(`offline_api_${cacheKey}`);
       if (cachedRaw) {
         const data = decryptData(cachedRaw);
         return data;

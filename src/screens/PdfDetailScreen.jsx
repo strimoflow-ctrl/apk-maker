@@ -1,7 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, FileText, ChevronRight, Book, Download, Loader2, Check } from 'lucide-react';
-import { useDownload } from '../context/DownloadContext';
+import { useDownload, useDownloadProgress } from '../context/DownloadContext';
+
+const DownloadProgressText = ({ downloadKey }) => {
+  const progressData = useDownloadProgress(downloadKey);
+  return <>{Math.round(progressData?.progress || 0)}%</>;
+};
 import NotificationModal from '../components/NotificationModal';
 import { fetchWithCache } from '../utils/api';
 import { useAlert } from '../context/AlertContext';
@@ -9,7 +14,7 @@ import { useAlert } from '../context/AlertContext';
 const PdfDetailScreen = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { downloadFile, activeDownloads, isDownloaded, getOfflineFileUrl, isDownloading } = useDownload();
+  const { downloadFile, isDownloaded, getOfflineFileUrl, isDownloading } = useDownload();
   const { showAlert } = useAlert();
   const [institution, setInstitution] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -133,12 +138,10 @@ const PdfDetailScreen = () => {
                             <span className="text-[10px] text-gray-600 uppercase font-bold tracking-widest">Unavailable</span>
                           ) : (
                             <>
-                              {activeDownloads[`naino_offline_pdf_${institution.id}_${sIdx}_${cIdx}`] ? (
-                                activeDownloads[`naino_offline_pdf_${institution.id}_${sIdx}_${cIdx}`].progress === 100 ? (
-                                  <span className="text-[10px] text-[#00E600] uppercase font-bold tracking-widest flex items-center gap-1"><Check size={12}/> Saved</span>
-                                ) : (
-                                  <span className="text-[10px] text-[#FFD700] uppercase font-bold tracking-widest flex items-center gap-1"><Loader2 size={12} className="animate-spin"/> {Math.round(activeDownloads[`naino_offline_pdf_${institution.id}_${sIdx}_${cIdx}`].progress)}%</span>
-                                )
+                              {isDownloading('pdf', institution.id, `${sIdx}_${cIdx}`) ? (
+                                <span className="text-[10px] text-[#FFD700] uppercase font-bold tracking-widest flex items-center gap-1"><Loader2 size={12} className="animate-spin"/> <DownloadProgressText downloadKey={`naino_offline_pdf_${institution.id}_${sIdx}_${cIdx}`} /></span>
+                              ) : isDownloaded('pdf', institution.id, `${sIdx}_${cIdx}`) ? (
+                                <span className="text-[10px] text-[#00E600] uppercase font-bold tracking-widest flex items-center gap-1"><Check size={12}/> Saved</span>
                               ) : (
                                 <>
                                   <span className="text-[10px] text-[#FFD700] uppercase font-bold tracking-widest hidden md:inline">Download</span>

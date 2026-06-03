@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Download, HardDrive, Trash2, Play, Pause, CheckCircle, Loader2, AlertTriangle, X, FolderArchive, Save, ExternalLink, Eye, ChevronRight, FileText } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { useDownload } from '../context/DownloadContext';
+import { useDownload, useDownloadProgress } from '../context/DownloadContext';
 import NotificationModal from '../components/NotificationModal';
 import { Capacitor } from '@capacitor/core';
 import { Filesystem, Directory } from '@capacitor/filesystem';
@@ -35,6 +35,16 @@ const saveFileToDevice = async (url, dl) => {
         console.warn("Storage permission request error:", err);
       }
 
+      try {
+        await Filesystem.mkdir({
+          path: 'NainoAcademy',
+          directory: Directory.Documents,
+          recursive: true
+        });
+      } catch (e) {
+        // Ignore if it already exists
+      }
+
       await Filesystem.copy({
         from: internalFileName,
         directory: Directory.Data,
@@ -55,7 +65,21 @@ const saveFileToDevice = async (url, dl) => {
         return true;
       } catch (err) {
         console.error("Documents fallback failed:", err);
-        throw err;
+        
+        // Final fallback: Try Downloads folder if Documents is restricted
+        try {
+          const internalFileName = `${dl.type}_${dl.courseId}_${dl.itemId}`.replace(/[^a-zA-Z0-9_.-]/g, '_') + ext;
+          await Filesystem.copy({
+            from: internalFileName,
+            directory: Directory.Data,
+            to: displayFileName,
+            toDirectory: Directory.ExternalStorage || 'DOWNLOADS'
+          });
+          return true;
+        } catch (extErr) {
+          console.error("ExternalStorage fallback failed:", extErr);
+          throw err;
+        }
       }
     }
   } else {
@@ -104,9 +128,75 @@ const ConfirmModal = ({ isOpen, title, message, onConfirm, onCancel }) => {
   );
 };
 
+const ActiveDownloadItem = ({ downloadKey, openModal, pauseDownload, resumeDownload }) => {
+  const dl = useDownloadProgress(downloadKey);
+  if (!dl || !dl.title) return null;
+
+  return (
+    <div className="bg-black p-4 rounded-xl border border-white/5 relative group">
+      <div className="flex justify-between items-center mb-2">
+        <div className="pr-10">
+          <h3 className="font-semibold text-white text-sm leading-tight">
+            {dl.title} <span className="text-[10px] text-gray-500 ml-1">({dl.type?.toUpperCase()})</span>
+          </h3>
+          {(dl.courseTitle || dl.chapterName) && (
+            <p className="text-[10px] text-gray-400 mt-1 line-clamp-1">
+              {dl.courseTitle} {dl.chapterName ? `• ${dl.chapterName}` : ''}
+            </p>
+          )}
+        </div>
+        <span className="text-xs text-[#FFD700] font-mono whitespace-nowrap ml-2">
+          {dl.status === 'paused' ? 'PAUSED' : `${Math.round(dl.progress || 0)}%`}
+        </span>
+      </div>
+      
+      <div className="flex items-center gap-3">
+        <div className="flex-1 bg-white/10 h-1.5 rounded-full overflow-hidden">
+          <div 
+            className="bg-[#FFD700] h-full transition-all duration-300"
+            style={{ width: `${dl.progress || 0}%` }}
+          ></div>
+        </div>
+        {dl.status === 'paused' ? (
+          <button 
+            onClick={() => resumeDownload(dl.type, dl.courseId, dl.itemId)}
+            className="text-gray-500 hover:text-[#00E600] transition-colors p-1"
+            title="Resume Download"
+          >
+            <Play size={16} />
+          </button>
+        ) : (
+          <button 
+            onClick={() => pauseDownload(dl.type, dl.courseId, dl.itemId)}
+            className="text-gray-500 hover:text-yellow-500 transition-colors p-1"
+            title="Pause Download"
+          >
+            <Pause size={16} />
+          </button>
+        )}
+        <button 
+          onClick={() => openModal('cancel', dl)}
+          className="text-gray-500 hover:text-red-500 transition-colors p-1"
+          title="Cancel Download"
+        >
+          <Trash2 size={16} />
+        </button>
+      </div>
+
+      <p className="text-[10px] text-gray-400 mt-2 text-right">
+        {(dl.loaded / (1024 * 1024)).toFixed(2)} MB 
+        {dl.isHLS 
+          ? ` (Seg ${dl.currentSegment || 0}/${dl.totalSegments || 0})`
+          : ` / ${dl.total ? (dl.total / (1024 * 1024)).toFixed(2) + ' MB' : 'Unknown'}`
+        }
+      </p>
+    </div>
+  );
+};
+
 const DownloadScreen = () => {
   const navigate = useNavigate();
-  const { activeDownloads, completedDownloads, deleteDownload, cancelDownload, pauseDownload, resumeDownload, getOfflineFileUrl } = useDownload();
+  const { activeDownloadKeys, completedDownloads, deleteDownload, cancelDownload, pauseDownload, resumeDownload, getOfflineFileUrl } = useDownload();
   
   const [modalState, setModalState] = useState({
     isOpen: false,
@@ -268,75 +358,21 @@ const DownloadScreen = () => {
 
         <div className="space-y-6">
           {/* Active Downloads Section */}
-          {Object.keys(activeDownloads).length > 0 && (
-            <div className="bg-[#111] border border-white/5 rounded-2xl p-6 shadow-lg">
+          {activeDownloadKeys.length > 0 && (
+            <div className="bg-white/5 border border-[#FFD700]/20 rounded-2xl p-6 shadow-lg shadow-[#FFD700]/5 mb-6">
               <h2 className="text-[#FFD700] font-bold mb-4 flex items-center gap-2">
-                <Loader2 className="animate-spin" size={20} /> Downloading...
+                <Loader2 className="animate-spin" size={20} /> Downloading ({activeDownloadKeys.length})
               </h2>
               <div className="space-y-4">
-                {Object.values(activeDownloads).map((dl, idx) => {
-                  if (!dl || !dl.title) return null; // Safety check
-                  return (
-                    <div key={idx} className="bg-black p-4 rounded-xl border border-white/5 relative group">
-                      <div className="flex justify-between items-center mb-2">
-                        <div className="pr-10">
-                          <h3 className="font-semibold text-white text-sm leading-tight">
-                            {dl.title} <span className="text-[10px] text-gray-500 ml-1">({dl.type?.toUpperCase()})</span>
-                          </h3>
-                          {(dl.courseTitle || dl.chapterName) && (
-                            <p className="text-[10px] text-gray-400 mt-1 line-clamp-1">
-                              {dl.courseTitle} {dl.chapterName ? `• ${dl.chapterName}` : ''}
-                            </p>
-                          )}
-                        </div>
-                        <span className="text-xs text-[#FFD700] font-mono whitespace-nowrap ml-2">
-                          {dl.status === 'paused' ? 'PAUSED' : `${Math.round(dl.progress || 0)}%`}
-                        </span>
-                      </div>
-                      
-                      <div className="flex items-center gap-3">
-                        <div className="flex-1 bg-white/10 h-1.5 rounded-full overflow-hidden">
-                          <div 
-                            className="bg-[#FFD700] h-full transition-all duration-300"
-                            style={{ width: `${dl.progress || 0}%` }}
-                          ></div>
-                        </div>
-                        {dl.status === 'paused' ? (
-                          <button 
-                            onClick={() => resumeDownload(dl.type, dl.courseId, dl.itemId)}
-                            className="text-gray-500 hover:text-[#00E600] transition-colors p-1"
-                            title="Resume Download"
-                          >
-                            <Play size={16} />
-                          </button>
-                        ) : (
-                          <button 
-                            onClick={() => pauseDownload(dl.type, dl.courseId, dl.itemId)}
-                            className="text-gray-500 hover:text-yellow-500 transition-colors p-1"
-                            title="Pause Download"
-                          >
-                            <Pause size={16} />
-                          </button>
-                        )}
-                        <button 
-                          onClick={() => openModal('cancel', dl)}
-                          className="text-gray-500 hover:text-red-500 transition-colors p-1"
-                          title="Cancel Download"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-
-                      <p className="text-[10px] text-gray-400 mt-2 text-right">
-                        {(dl.loaded / (1024 * 1024)).toFixed(2)} MB 
-                        {dl.isHLS 
-                          ? ` (Seg ${dl.currentSegment || 0}/${dl.totalSegments || 0})`
-                          : ` / ${dl.total ? (dl.total / (1024 * 1024)).toFixed(2) + ' MB' : 'Unknown'}`
-                        }
-                      </p>
-                    </div>
-                  );
-                })}
+                {activeDownloadKeys.map((key) => (
+                  <ActiveDownloadItem 
+                    key={key} 
+                    downloadKey={key} 
+                    openModal={openModal} 
+                    pauseDownload={pauseDownload} 
+                    resumeDownload={resumeDownload} 
+                  />
+                ))}
               </div>
             </div>
           )}

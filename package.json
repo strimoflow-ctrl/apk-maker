@@ -30,6 +30,9 @@
     "react-easy-crop": "^5.5.7",
     "react-pdf": "^10.4.1",
     "react-router-dom": "^7.1.5",
+    "react-virtualized-auto-sizer": "^2.0.3",
+    "react-virtuoso": "^4.18.7",
+    "react-window": "^2.2.7",
     "react-zoom-pan-pinch": "^4.0.3"
   },
   "devDependencies": {

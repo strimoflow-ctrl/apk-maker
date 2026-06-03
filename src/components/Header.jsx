@@ -8,10 +8,10 @@ import { fetchBackendAPI } from '../utils/api';
 const Header = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { activeDownloads, completedDownloads } = useDownload();
+  const { activeDownloadKeys, completedDownloads } = useDownload();
   const showBack = location.pathname !== '/';
   
-  const activeCount = Object.keys(activeDownloads).length;
+  const activeCount = activeDownloadKeys.length;
   
   const [showCheck, setShowCheck] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
