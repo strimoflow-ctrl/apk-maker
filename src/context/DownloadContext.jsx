@@ -525,31 +525,38 @@ export const DownloadProvider = ({ children }) => {
           }
         }
 
-        if (isCapacitor && !isResume) {
-          // Native Capacitor Download (NO LAG, NO RAM BLOAT)
-          let progressListener = null;
-          
-          try {
-            // Setup listener
-            progressListener = await Filesystem.addListener('progress', (status) => {
-              if (status.url === proxyUrl || status.url === proxyUrl.split('?')[0]) {
-                const currentPercent = (status.bytes / status.contentLength) * 100;
-                setActiveDownloads(prev => ({
-                  ...prev,
-                  [downloadKey]: { 
-                    progress: currentPercent, 
-                    loaded: status.bytes, 
-                    total: status.contentLength, 
-                    title,
-                    type,
-                    courseTitle,
-                    chapterName,
-                    courseId,
-                    itemId,
-                    url,
-                    status: 'downloading'
+          if (isCapacitor && !isResume) {
+            // Native Capacitor Download (NO LAG, NO RAM BLOAT)
+            let progressListener = null;
+            let lastUpdateTime = 0;
+            
+            try {
+              // Setup listener
+              progressListener = await Filesystem.addListener('progress', (status) => {
+                if (status.url === proxyUrl || status.url === proxyUrl.split('?')[0]) {
+                  const currentPercent = (status.bytes / status.contentLength) * 100;
+                  
+                  const now = Date.now();
+                  // Throttle React state updates to 1 per second to prevent freezing the JS thread!
+                  if (now - lastUpdateTime > 1000 || currentPercent === 100) {
+                    setActiveDownloads(prev => ({
+                      ...prev,
+                      [downloadKey]: { 
+                        progress: currentPercent, 
+                        loaded: status.bytes, 
+                        total: status.contentLength, 
+                        title,
+                        type,
+                        courseTitle,
+                        chapterName,
+                        courseId,
+                        itemId,
+                        url,
+                        status: 'downloading'
+                      }
+                    }));
+                    lastUpdateTime = now;
                   }
-                }));
 
                 if (Math.floor(currentPercent) - lastPercentNotified >= 5) {
                   lastPercentNotified = Math.floor(currentPercent);

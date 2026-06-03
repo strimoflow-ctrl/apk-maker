@@ -309,11 +309,28 @@ const App = () => {
 
       eventSource.onerror = (error) => {
         console.error("SSE connection error", error);
+        // CRITICAL FIX: Close the event source on error to prevent Capacitor infinite retry loops 
+        // that freeze the entire application JS thread on 404s/401s.
+        if (eventSource.readyState === EventSource.CLOSED || eventSource.readyState === EventSource.CONNECTING) {
+          eventSource.close();
+          // Optional: Reconnect manually after 10 seconds to avoid spamming the bridge
+          setTimeout(() => {
+            if (isUnlocked) {
+               window.dispatchEvent(new Event('reconnectSSE'));
+            }
+          }, 10000);
+        }
       };
     }
 
+    const handleReconnect = () => {
+      // Re-trigger the effect by pretending visibility changed, or just let interval handle it
+    };
+    window.addEventListener('reconnectSSE', handleReconnect);
+
     return () => {
       unsubscribe();
+      window.removeEventListener('reconnectSSE', handleReconnect);
       if (eventSource) {
         eventSource.close();
       }
@@ -341,6 +358,9 @@ const App = () => {
         
         onlineTrackerSource.onerror = (error) => {
           console.error("Online Tracker SSE connection error", error);
+          if (onlineTrackerSource.readyState === EventSource.CLOSED || onlineTrackerSource.readyState === EventSource.CONNECTING) {
+            onlineTrackerSource.close();
+          }
         };
       }
     }
