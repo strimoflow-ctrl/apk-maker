@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": ["../../node_modules/@capacitor-community/file-opener/src/index.ts"],
+  "sourcesContent": ["import { registerPlugin } from '@capacitor/core';\n\nimport type { FileOpenerPlugin } from './definitions.js';\n\nconst FileOpener = registerPlugin<FileOpenerPlugin>('FileOpener');\n\nexport * from './definitions.js';\nexport { FileOpener };\n"],
+  "mappings": ";;;;;;AAIA,IAAM,aAAa,eAAiC,YAAY;",
+  "names": []
+}

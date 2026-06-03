@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": ["../../node_modules/@capacitor-community/keep-awake/src/index.ts"],
+  "sourcesContent": ["import { registerPlugin } from '@capacitor/core';\n\nimport type { KeepAwakePlugin } from './definitions';\n\nconst KeepAwake = registerPlugin<KeepAwakePlugin>('KeepAwake', {\n  web: () => import('./web').then((m) => new m.KeepAwakeWeb()),\n});\n\nexport * from './definitions';\nexport { KeepAwake };\n"],
+  "mappings": ";;;;;;AAIA,IAAM,YAAY,eAAgC,aAAa;EAC7D,KAAK,MAAM,OAAO,mBAAO,EAAE,KAAK,CAAC,MAAM,IAAI,EAAE,aAAY,CAAE;CAC5D;",
+  "names": []
+}
