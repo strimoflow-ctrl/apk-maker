@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { HashRouter as Router, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { fetchBackendAPI, fetchWithCache, getBackendUrl } from './utils/api';
 import { ShieldAlert } from 'lucide-react';
@@ -9,37 +9,40 @@ import Header from './components/Header';
 import LockScreen from './components/LockScreen';
 import BackButtonHandler from './components/BackButtonHandler';
 import BottomNavBar from './components/BottomNavBar';
+import ScreenLoader from './components/ScreenLoader';
 
-// Screens
+// Instantly Loaded Screens
 import HomeScreen from './screens/HomeScreen';
-import RecentActivityScreen from './screens/RecentActivityScreen';
-import DownloadScreen from './screens/DownloadScreen';
-import NewsScreen from './screens/NewsScreen';
-import TeachersLibraryScreen from './screens/TeachersLibraryScreen';
-import CourseDetailScreen from './screens/CourseDetailScreen';
-import CoachingListScreen from './screens/CoachingListScreen';
-import CoachingDetailScreen from './screens/CoachingDetailScreen';
-import PdfViewerScreen from './screens/PdfViewerScreen';
-import AccountScreen from './screens/AccountScreen';
-import AboutScreen from './screens/AboutScreen';
-import CrashCourseListScreen from './screens/CrashCourseListScreen';
-import CrashCourseDetailScreen from './screens/CrashCourseDetailScreen';
-import PdfZoneScreen from './screens/PdfZoneScreen';
-import PdfDetailScreen from './screens/PdfDetailScreen';
-import TestZoneScreen from './screens/TestZoneScreen';
-import TestZoneDetailScreen from './screens/TestZoneDetailScreen';
-import BookLibraryScreen from './screens/BookLibraryScreen';
-import HtmlViewerScreen from './screens/HtmlViewerScreen';
-import FeedbackScreen from './screens/FeedbackScreen';
-import NainoAiScreen from './screens/NainoAiScreen';
-import LibraryScreen from './screens/LibraryScreen';
-import MyProgressScreen from './screens/MyProgressScreen';
-import MoreScreen from './screens/MoreScreen';
-import MentorshipListScreen from './screens/MentorshipListScreen';
-import MentorDetailScreen from './screens/MentorDetailScreen';
-import NainoStoreScreen from './screens/NainoStoreScreen';
-import NotificationListScreen from './screens/NotificationListScreen';
-import CommunityScreen from './screens/CommunityScreen';
+
+// Lazy Loaded Screens
+const RecentActivityScreen = React.lazy(() => import('./screens/RecentActivityScreen'));
+const DownloadScreen = React.lazy(() => import('./screens/DownloadScreen'));
+const NewsScreen = React.lazy(() => import('./screens/NewsScreen'));
+const TeachersLibraryScreen = React.lazy(() => import('./screens/TeachersLibraryScreen'));
+const CourseDetailScreen = React.lazy(() => import('./screens/CourseDetailScreen'));
+const CoachingListScreen = React.lazy(() => import('./screens/CoachingListScreen'));
+const CoachingDetailScreen = React.lazy(() => import('./screens/CoachingDetailScreen'));
+const PdfViewerScreen = React.lazy(() => import('./screens/PdfViewerScreen'));
+const AccountScreen = React.lazy(() => import('./screens/AccountScreen'));
+const AboutScreen = React.lazy(() => import('./screens/AboutScreen'));
+const CrashCourseListScreen = React.lazy(() => import('./screens/CrashCourseListScreen'));
+const CrashCourseDetailScreen = React.lazy(() => import('./screens/CrashCourseDetailScreen'));
+const PdfZoneScreen = React.lazy(() => import('./screens/PdfZoneScreen'));
+const PdfDetailScreen = React.lazy(() => import('./screens/PdfDetailScreen'));
+const TestZoneScreen = React.lazy(() => import('./screens/TestZoneScreen'));
+const TestZoneDetailScreen = React.lazy(() => import('./screens/TestZoneDetailScreen'));
+const BookLibraryScreen = React.lazy(() => import('./screens/BookLibraryScreen'));
+const HtmlViewerScreen = React.lazy(() => import('./screens/HtmlViewerScreen'));
+const FeedbackScreen = React.lazy(() => import('./screens/FeedbackScreen'));
+const NainoAiScreen = React.lazy(() => import('./screens/NainoAiScreen'));
+const LibraryScreen = React.lazy(() => import('./screens/LibraryScreen'));
+const MyProgressScreen = React.lazy(() => import('./screens/MyProgressScreen'));
+const MoreScreen = React.lazy(() => import('./screens/MoreScreen'));
+const MentorshipListScreen = React.lazy(() => import('./screens/MentorshipListScreen'));
+const MentorDetailScreen = React.lazy(() => import('./screens/MentorDetailScreen'));
+const NainoStoreScreen = React.lazy(() => import('./screens/NainoStoreScreen'));
+const NotificationListScreen = React.lazy(() => import('./screens/NotificationListScreen'));
+const CommunityScreen = React.lazy(() => import('./screens/CommunityScreen'));
 import { requestNotificationPermission, listenForForegroundMessages } from './utils/notifications';
 import { APP_VERSION_CODE } from './config/version';
 import AppUpdateModal from './components/AppUpdateModal';
@@ -91,38 +94,40 @@ const AppShell = () => {
       <div className="min-h-screen bg-[var(--color-apple-bg)] flex flex-col">
         {showGlobalHeader && <Header />}
         <div className="flex-1">
-          <Routes>
-            <Route path="/" element={<HomeScreen />} />
-            <Route path="/notifications" element={<NotificationListScreen />} />
-            <Route path="/community" element={<CommunityScreen />} />
-            <Route path="/recent" element={<RecentActivityScreen />} />
-            <Route path="/downloads" element={<DownloadScreen />} />
-            <Route path="/news" element={<NewsScreen />} />
-            <Route path="/teachers-library" element={<TeachersLibraryScreen />} />
-            <Route path="/course/:courseId" element={<CourseDetailScreen />} />
-            <Route path="/coaching" element={<CoachingListScreen />} />
-            <Route path="/coaching/:coachingId" element={<CoachingDetailScreen />} />
-            <Route path="/pdf" element={<PdfViewerScreen />} />
-            <Route path="/account" element={<AccountScreen />} />
-            <Route path="/about" element={<AboutScreen />} />
-            <Route path="/crash" element={<CrashCourseListScreen />} />
-            <Route path="/crash/:courseId" element={<CrashCourseDetailScreen />} />
-            <Route path="/pdf-zone" element={<PdfZoneScreen />} />
-            <Route path="/pdf-zone/:id" element={<PdfDetailScreen />} />
-            <Route path="/test-zone" element={<TestZoneScreen />} />
-            <Route path="/test-zone/:id" element={<TestZoneDetailScreen />} />
-            <Route path="/book-library" element={<BookLibraryScreen />} />
-            <Route path="/html-viewer" element={<HtmlViewerScreen />} />
-            <Route path="/feedback" element={<FeedbackScreen />} />
-            <Route path="/naino-ai" element={<NainoAiScreen />} />
-            <Route path="/library" element={<LibraryScreen />} />
-            <Route path="/progress" element={<MyProgressScreen />} />
-            <Route path="/doubt-zone" element={<NainoAiScreen />} />
-            <Route path="/more" element={<MoreScreen />} />
-            <Route path="/mentorship" element={<MentorshipListScreen />} />
-            <Route path="/mentorship/:id" element={<MentorDetailScreen />} />
-            <Route path="/store" element={<NainoStoreScreen />} />
-          </Routes>
+          <Suspense fallback={<ScreenLoader />}>
+            <Routes>
+              <Route path="/" element={<HomeScreen />} />
+              <Route path="/notifications" element={<NotificationListScreen />} />
+              <Route path="/community" element={<CommunityScreen />} />
+              <Route path="/recent" element={<RecentActivityScreen />} />
+              <Route path="/downloads" element={<DownloadScreen />} />
+              <Route path="/news" element={<NewsScreen />} />
+              <Route path="/teachers-library" element={<TeachersLibraryScreen />} />
+              <Route path="/course/:courseId" element={<CourseDetailScreen />} />
+              <Route path="/coaching" element={<CoachingListScreen />} />
+              <Route path="/coaching/:coachingId" element={<CoachingDetailScreen />} />
+              <Route path="/pdf" element={<PdfViewerScreen />} />
+              <Route path="/account" element={<AccountScreen />} />
+              <Route path="/about" element={<AboutScreen />} />
+              <Route path="/crash" element={<CrashCourseListScreen />} />
+              <Route path="/crash/:courseId" element={<CrashCourseDetailScreen />} />
+              <Route path="/pdf-zone" element={<PdfZoneScreen />} />
+              <Route path="/pdf-zone/:id" element={<PdfDetailScreen />} />
+              <Route path="/test-zone" element={<TestZoneScreen />} />
+              <Route path="/test-zone/:id" element={<TestZoneDetailScreen />} />
+              <Route path="/book-library" element={<BookLibraryScreen />} />
+              <Route path="/html-viewer" element={<HtmlViewerScreen />} />
+              <Route path="/feedback" element={<FeedbackScreen />} />
+              <Route path="/naino-ai" element={<NainoAiScreen />} />
+              <Route path="/library" element={<LibraryScreen />} />
+              <Route path="/progress" element={<MyProgressScreen />} />
+              <Route path="/doubt-zone" element={<NainoAiScreen />} />
+              <Route path="/more" element={<MoreScreen />} />
+              <Route path="/mentorship" element={<MentorshipListScreen />} />
+              <Route path="/mentorship/:id" element={<MentorDetailScreen />} />
+              <Route path="/store" element={<NainoStoreScreen />} />
+            </Routes>
+          </Suspense>
         </div>
         <BottomNavBar />
       </div>

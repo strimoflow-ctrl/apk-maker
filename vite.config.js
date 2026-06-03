@@ -51,5 +51,16 @@ export default defineConfig(({ command }) => ({
         changeOrigin: true,
       }
     }
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'pdf-vendor': ['react-pdf', 'pdfjs-dist'],
+          'firebase-vendor': ['firebase/app', 'firebase/firestore', 'firebase/storage', 'firebase/auth'],
+          'icons-vendor': ['lucide-react']
+        }
+      }
+    }
   }
 }))

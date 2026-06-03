@@ -148,6 +148,15 @@ const AccountScreen = () => {
     
     eventSource.onerror = (error) => {
       console.error("SSE connection error in AccountScreen:", error);
+      if (eventSource.readyState === EventSource.CLOSED || eventSource.readyState === EventSource.CONNECTING) {
+        eventSource.close();
+        setTimeout(() => {
+          if (secretKey && secretKey !== 'XXXXXX') {
+             // Force re-trigger by dispatching a custom event, or just rely on a safer polling mechanism if needed
+             // For now, closing it prevents the Capacitor freeze crash
+          }
+        }, 10000);
+      }
     };
     
     return () => eventSource.close();
