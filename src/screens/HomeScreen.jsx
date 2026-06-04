@@ -428,9 +428,7 @@ const HomeScreen = () => {
 
         {/* --- 4. UNIFIED ACADEMIC DIRECTORY GRID (9 PREMIUM SECTIONS) --- */}
         <section className="mb-8 relative">
-          {/* Background Ambient Glow Orbs */}
-          <div className="absolute top-1/4 -left-12 w-48 h-48 rounded-full bg-[#FFD700]/5 blur-3xl pointer-events-none" style={{ animation: 'orbFloat 10s ease-in-out infinite' }} />
-          <div className="absolute bottom-1/4 -right-12 w-48 h-48 rounded-full bg-[#BF5AF2]/5 blur-3xl pointer-events-none" style={{ animation: 'orbFloatAlt 12s ease-in-out infinite' }} />
+          {/* Background Ambient Glow Orbs (Removed heavy blurs to fix GPU lag) */}
 
           <div className="flex items-center gap-2 mb-4 relative z-10">
             <div className="w-1 h-4 bg-[#FFD700] rounded-full" />
@@ -467,10 +465,10 @@ const HomeScreen = () => {
                     if (item.path !== '#') navigate(item.path); 
                   }}
                   style={{ animationDelay: `${idx * 45}ms` }}
-                  className={`grid-card-anim group relative flex border border-white/5 rounded-2xl transition-all duration-300 ${item.isComingSoon ? 'opacity-70 cursor-not-allowed' : 'active:scale-95 hover:border-[#FFD700]/30 hover:-translate-y-1'} shadow-[0_4px_20px_rgba(0,0,0,0.4)] backdrop-blur-md ${
+                  className={`grid-card-anim group relative flex border border-white/5 rounded-2xl transition-all duration-300 ${item.isComingSoon ? 'opacity-70 cursor-not-allowed' : 'active:scale-95 hover:border-[#FFD700]/30 hover:-translate-y-1'} shadow-[0_4px_20px_rgba(0,0,0,0.4)] ${
                     isWide 
-                      ? 'col-span-3 flex-row items-center gap-4 px-5 py-3 bg-gradient-to-r from-[#111]/90 to-[#111]/45 min-h-[68px]' 
-                      : 'flex-col items-center justify-between p-3 bg-[#111]/80 min-h-[105px]'
+                      ? 'col-span-3 flex-row items-center gap-4 px-5 py-3 bg-gradient-to-r from-[#1A1A1A] to-[#141414] min-h-[68px]' 
+                      : 'flex-col items-center justify-between p-3 bg-[#1A1A1A] min-h-[105px]'
                   }`}
                 >
                   <div className={`absolute inset-0 opacity-[0.02] group-hover:opacity-[0.08] blur-xl rounded-full transition-opacity duration-300 ${item.bgClass}`} />
@@ -533,7 +531,7 @@ const HomeScreen = () => {
             <ActiveUsersWidget />
 
             {/* Impact Card 2: Premium Lectures */}
-            <div className="bg-[#111]/80 border border-white/5 rounded-2xl p-4 flex flex-col justify-between shadow-md relative overflow-hidden backdrop-blur-md">
+            <div className="bg-[#1A1A1A] border border-white/5 rounded-2xl p-4 flex flex-col justify-between shadow-md relative overflow-hidden">
               <div>
                 <div className="w-7 h-7 rounded-xl bg-[#FFD700]/10 flex items-center justify-center text-[#FFD700] mb-3">
                   <Play size={14} />
@@ -560,7 +558,7 @@ const HomeScreen = () => {
             </div>
 
             {/* Impact Card 3: PDFs & Books */}
-            <div className="bg-[#111]/80 border border-white/5 rounded-2xl p-4 flex flex-col justify-between shadow-md relative overflow-hidden backdrop-blur-md">
+            <div className="bg-[#1A1A1A] border border-white/5 rounded-2xl p-4 flex flex-col justify-between shadow-md relative overflow-hidden">
               <div>
                 <div className="w-7 h-7 rounded-xl bg-[#FF453A]/10 flex items-center justify-center text-[#FF453A] mb-3">
                   <FileText size={14} />
@@ -588,7 +586,7 @@ const HomeScreen = () => {
           </div>
 
           {/* Wide Card with 92% Circular progress */}
-          <div className="bg-[#111]/80 border border-white/5 rounded-[2rem] p-5 flex items-center justify-between shadow-lg backdrop-blur-md">
+          <div className="bg-[#1A1A1A] border border-white/5 rounded-[2rem] p-5 flex items-center justify-between shadow-lg">
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 rounded-2xl bg-[#0A84FF]/10 flex items-center justify-center text-[#0A84FF]">
                 <Users size={24} />
@@ -680,7 +678,7 @@ const HomeScreen = () => {
                         }
                       });
                     }}
-                    className="bg-[#111]/80 border border-white/5 rounded-[2rem] p-4 flex gap-4 shadow-lg backdrop-blur-md relative overflow-hidden group hover:border-[#FFD700]/30 transition-all duration-300 cursor-pointer"
+                    className="bg-[#1A1A1A] border border-white/5 rounded-[2rem] p-4 flex gap-4 shadow-lg relative overflow-hidden group hover:border-[#FFD700]/30 transition-all duration-300 cursor-pointer"
                   >
                     {/* Subject badge and play thumbnail */}
                     <div className="relative w-24 h-16 bg-gradient-to-br from-[#121213] to-[#252528] rounded-2xl overflow-hidden border border-white/5 shrink-0 flex items-center justify-center shadow-inner">
@@ -753,7 +751,7 @@ const HomeScreen = () => {
 
         {/* --- 6. FOOTER MOTIVATION BANNER --- */}
         <section className="mb-6">
-          <div className="bg-gradient-to-r from-[#FFD700]/10 via-[#FFD700]/5 to-transparent border border-[#FFD700]/25 rounded-[2rem] p-4 flex items-center justify-between gap-4 shadow-[0_10px_35px_rgba(255,215,0,0.03)] backdrop-blur-md">
+          <div className="bg-[#1A1A1A] border border-[#FFD700]/25 rounded-[2rem] p-4 flex items-center justify-between gap-4 shadow-[0_10px_35px_rgba(255,215,0,0.03)]">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-[#FFD700]/15 text-[#FFD700] flex items-center justify-center shrink-0 animate-pulse shadow-[0_0_15px_rgba(255,215,0,0.2)]">
                 <Trophy size={18} />

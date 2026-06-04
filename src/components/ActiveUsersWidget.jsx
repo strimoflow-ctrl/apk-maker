@@ -99,7 +99,7 @@ const ActiveUsersWidget = () => {
   }, []);
 
   return (
-    <div className="bg-[#111]/80 border border-white/5 rounded-2xl p-4 flex flex-col justify-between shadow-md relative overflow-hidden backdrop-blur-md">
+    <div className="bg-[#1A1A1A] border border-white/5 rounded-2xl p-4 flex flex-col justify-between shadow-md relative overflow-hidden">
       <div>
         <div className="w-7 h-7 rounded-xl bg-[#30D158]/10 flex items-center justify-center text-[#30D158] mb-3">
           <Users size={14} />

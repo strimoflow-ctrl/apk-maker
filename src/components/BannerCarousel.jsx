@@ -102,8 +102,8 @@ const BannerCarousel = () => {
             key={banner.id || idx}
             className={`absolute inset-0 transition-all duration-700 ease-[cubic-bezier(0.25,1,0.5,1)] cursor-pointer origin-center ${
               idx === currentBannerIndex 
-                ? 'opacity-100 scale-100 translate-x-0 z-10 blur-none' 
-                : 'opacity-0 scale-110 translate-x-8 z-0 blur-[2px]'
+                ? 'opacity-100 scale-100 translate-x-0 z-10' 
+                : 'opacity-0 scale-110 translate-x-8 z-0'
             }`}
             onClick={() => {
               if (banner.actionUrl && banner.actionUrl !== '#') {
