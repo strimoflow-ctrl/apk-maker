@@ -41,15 +41,27 @@ const HomeScreen = () => {
       setAvatarUrl(localStorage.getItem('naino_user_avatar'));
     };
     window.addEventListener('avatarUpdated', handleAvatarUpdate);
+    let lastCachedStr = null;
+    let lastUnreadCount = 0;
+    let lastReadTimestamp = null;
+    
     const calculateUnreadCount = () => {
       try {
         const cachedStr = localStorage.getItem('naino_cached_notifications');
+        const lastRead = localStorage.getItem('naino_last_read_notifications_timestamp') || 0;
         if (!cachedStr) return;
         
+        if (cachedStr === lastCachedStr && lastRead === lastReadTimestamp) {
+          setUnreadCount(lastUnreadCount);
+          return;
+        }
+        
         const notifications = JSON.parse(cachedStr);
-        const lastRead = localStorage.getItem('naino_last_read_notifications_timestamp') || 0;
         
         const count = notifications.filter(n => new Date(n.createdAt).getTime() > Number(lastRead)).length;
+        lastCachedStr = cachedStr;
+        lastReadTimestamp = lastRead;
+        lastUnreadCount = count;
         setUnreadCount(count);
       } catch (e) {}
     };
@@ -117,6 +129,7 @@ const HomeScreen = () => {
 
     const buildSearchIndex = async () => {
       const index = [];
+      const yieldToMain = () => new Promise(r => setTimeout(r, 0));
 
       // 1. Index Books
       try {
@@ -136,6 +149,7 @@ const HomeScreen = () => {
       } catch (e) {
         console.warn('Failed to index books for search:', e);
       }
+      await yieldToMain(); // Prevent main thread freezing
 
       // 2. Index Teacher's Library Courses
       try {
@@ -156,6 +170,7 @@ const HomeScreen = () => {
       } catch (e) {
         console.warn('Failed to index courses for search:', e);
       }
+      await yieldToMain();
 
       // 3. Index Coaching Materials
       try {
@@ -176,6 +191,7 @@ const HomeScreen = () => {
       } catch (e) {
         console.warn('Failed to index coaching for search:', e);
       }
+      await yieldToMain();
 
       // 4. Index Crash Courses
       try {
@@ -196,6 +212,7 @@ const HomeScreen = () => {
       } catch (e) {
         console.warn('Failed to index crash courses for search:', e);
       }
+      await yieldToMain();
 
       // 5. Index Test Zone Series
       try {
@@ -215,6 +232,7 @@ const HomeScreen = () => {
       } catch (e) {
         console.warn('Failed to index test zone for search:', e);
       }
+      await yieldToMain();
 
       setSearchIndex(index);
     };
@@ -249,6 +267,9 @@ const HomeScreen = () => {
   return (
     <div className="min-h-screen bg-[#000] text-white overflow-x-hidden font-inter pb-24 page-transition relative">
       <style>{`
+        @media (prefers-reduced-motion: reduce) {
+          * { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+        }
         @keyframes gridCardEntrance {
           0% { opacity: 0; transform: translateY(24px) scale(0.96); }
           100% { opacity: 1; transform: translateY(0) scale(1); }
@@ -327,7 +348,7 @@ const HomeScreen = () => {
       <div className="relative z-10 w-full max-w-lg mx-auto px-4 pt-4">
 
         {/* --- 1. TOP HEADER SECTION --- */}
-        <header className="flex items-center justify-between py-3 mb-6 bg-black/40 backdrop-blur-md rounded-2xl px-2 border border-white/5">
+        <header className="flex items-center justify-between py-3 mb-6 bg-[#1A1A1A]/95 rounded-2xl px-2 border border-white/5 shadow-md">
           <div className="flex items-center gap-2">
             <div className="w-9 h-9 rounded-full bg-[#1A1A1A] border border-[#FFD700]/30 flex items-center justify-center overflow-hidden shrink-0 shadow-[0_0_10px_rgba(255,215,0,0.1)]">
               <img src="/logo.png" alt="Logo" className="w-6 h-6 object-contain" />
@@ -471,11 +492,11 @@ const HomeScreen = () => {
                       : 'flex-col items-center justify-between p-3 bg-[#1A1A1A] min-h-[105px]'
                   }`}
                 >
-                  <div className={`absolute inset-0 opacity-[0.02] group-hover:opacity-[0.08] blur-xl rounded-full transition-opacity duration-300 ${item.bgClass}`} />
+                  <div className={`absolute inset-0 opacity-[0.02] group-hover:opacity-[0.05] rounded-full transition-opacity duration-300 ${item.bgClass}`} />
                   <div className={`rounded-xl bg-white/5 border border-white/10 flex items-center justify-center shadow-inner transition-colors group-hover:border-white/20 relative overflow-hidden shrink-0 ${
                     isWide ? 'w-10 h-10' : 'w-10 h-10 mb-1.5'
                   }`}>
-                    <div className={`absolute inset-0 opacity-10 blur-md rounded-full ${item.bgClass}`} />
+                    <div className={`absolute inset-0 opacity-10 rounded-full ${item.bgClass}`} />
                     <Icon size={18} className={`${item.color} ${item.iconClass || ''} drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] z-10 transition-transform`} />
                   </div>
                   
@@ -771,7 +792,7 @@ const HomeScreen = () => {
 
       {/* --- 7. POWERFUL SEARCH OVERLAY MODAL --- */}
       {isSearchOpen && (
-        <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-2xl flex flex-col p-4 md:p-8 animate-fade-in">
+        <div className="fixed inset-0 z-[100] bg-[#0D0D0D]/98 flex flex-col p-4 md:p-8 animate-fade-in">
           <div className="w-full max-w-xl mx-auto flex-1 flex flex-col">
             {/* Header */}
             <div className="flex items-center gap-3 mb-6">

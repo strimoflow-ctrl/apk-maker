@@ -2,10 +2,11 @@ import { getToken, onMessage } from "firebase/messaging";
 import { messaging } from "../firebase";
 import { fetchBackendAPI } from "./api";
 import { PushNotifications } from '@capacitor/push-notifications';
+import config from "./config";
 
 // Note: To receive tokens, you MUST pass your VAPID key below
 // Generate this key in Firebase Console -> Project Settings -> Cloud Messaging -> Web Push certificates
-const VAPID_KEY = import.meta.env.VITE_FIREBASE_VAPID_KEY;
+const VAPID_KEY = config.FIREBASE_VAPID_KEY;
 const isCapacitor = typeof window !== 'undefined' && !!window.Capacitor;
 
 export const saveNotificationToLocal = (title, body) => {

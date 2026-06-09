@@ -5,6 +5,19 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Naino Academy</title>
+  <script>
+    if (window.Android) {
+      try {
+        localStorage.setItem('naino_access_token', window.Android.getToken() || '');
+        localStorage.setItem('naino_user_name', window.Android.getUsername() || '');
+        localStorage.setItem('naino_premium_member', window.Android.isPremium() ? 'true' : 'false');
+        localStorage.setItem('naino_user_avatar', window.Android.getAvatar() || '');
+        localStorage.setItem('naino_device_uuid', window.Android.getDeviceId() || '');
+      } catch(e) {
+        console.error("Failed to sync credentials from Android interface:", e);
+      }
+    }
+  </script>
   <style>
     body,
     html {

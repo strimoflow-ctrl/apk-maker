@@ -1,4 +1,5 @@
 import CryptoJS from 'crypto-js';
+import config from './config';
 
 /**
  * Attempts to decrypt the provided data string using the app's secret key.
@@ -18,7 +19,7 @@ export const decryptData = (text) => {
   } catch (e) {
     // It's not plain JSON, let's try to decrypt it.
     try {
-      const secretKey = import.meta.env.VITE_APP_SECRET_KEY;
+      const secretKey = config.APP_SECRET_KEY;
       if (!secretKey) {
         console.warn('VITE_APP_SECRET_KEY is not defined. Cannot decrypt data.');
         return text;
@@ -54,7 +55,7 @@ export const decryptString = (text) => {
   }
 
   try {
-    const secretKey = import.meta.env.VITE_APP_SECRET_KEY;
+    const secretKey = config.APP_SECRET_KEY;
     if (!secretKey) return text;
 
     const bytes = CryptoJS.AES.decrypt(text, secretKey);

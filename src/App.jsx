@@ -154,7 +154,7 @@ const App = () => {
         const parsed = JSON.parse(cached);
         if (parsed.checkIntervalMinutes) return parsed.checkIntervalMinutes * 60 * 1000;
       }
-    } catch (e) {}
+    } catch (e) { }
     return 7 * 60 * 1000; // default 7 minutes
   });
 
@@ -165,7 +165,7 @@ const App = () => {
         const parsed = JSON.parse(cached);
         return parsed.maintenanceMode === true;
       }
-    } catch (e) {}
+    } catch (e) { }
     return false;
   });
 
@@ -176,7 +176,7 @@ const App = () => {
         const parsed = JSON.parse(cached);
         if (parsed.maintenanceMessage) return parsed.maintenanceMessage;
       }
-    } catch (e) {}
+    } catch (e) { }
     return "Naino Academy server updates are in progress. Please check back in a few minutes.";
   });
 
@@ -195,7 +195,7 @@ const App = () => {
             setCheckInterval(parsed.checkIntervalMinutes * 60 * 1000);
           }
         }
-      } catch (e) {}
+      } catch (e) { }
     };
     window.addEventListener('globalConfigUpdated', handleConfigUpdate);
     return () => window.removeEventListener('globalConfigUpdated', handleConfigUpdate);
@@ -322,7 +322,7 @@ const App = () => {
           // Optional: Reconnect manually after 10 seconds to avoid spamming the bridge
           setTimeout(() => {
             if (isUnlocked) {
-               window.dispatchEvent(new Event('reconnectSSE'));
+              window.dispatchEvent(new Event('reconnectSSE'));
             }
           }, 10000);
         }
@@ -346,22 +346,22 @@ const App = () => {
   // Global Online Students Tracker (SSE)
   useEffect(() => {
     let onlineTrackerSource = null;
-    
+
     if (isUnlocked) {
       const token = localStorage.getItem('naino_access_token');
       const username = localStorage.getItem('naino_user_name') || 'Student';
       const avatar = localStorage.getItem('naino_user_avatar') || '👨‍🎓';
       const backendUrl = getBackendUrl();
-      
+
       if (token && token !== 'XXXXXX') {
         const query = new URLSearchParams({
           code: token,
           name: username,
           avatar: avatar
         }).toString();
-        
+
         onlineTrackerSource = new EventSource(`${backendUrl}/api/online/listen?${query}`);
-        
+
         onlineTrackerSource.onerror = (error) => {
           console.error("Online Tracker SSE connection error", error);
           if (onlineTrackerSource.readyState === EventSource.CLOSED || onlineTrackerSource.readyState === EventSource.CONNECTING) {
@@ -370,7 +370,7 @@ const App = () => {
         };
       }
     }
-    
+
     return () => {
       if (onlineTrackerSource) {
         onlineTrackerSource.close();
@@ -496,7 +496,7 @@ const App = () => {
         console.warn("Failed to fetch dynamic config on startup:", err);
       }
     };
-    
+
     const checkAppUpdates = async () => {
       try {
         // Only show APK updates if running natively on an Android/iOS device, not Web
@@ -505,10 +505,10 @@ const App = () => {
         const updateRes = await fetchWithCache('/api/config/app_update.json', 'cache_app_update', 5 * 60 * 1000);
         if (updateRes && updateRes.latestVersionCode > APP_VERSION_CODE) {
           const ignoredVersion = localStorage.getItem('naino_ignored_update_version');
-          
+
           // Never skip if it's a forced update
           if (ignoredVersion === String(updateRes.latestVersionCode) && !updateRes.forceUpdate) {
-            return; 
+            return;
           }
           setUpdateData(updateRes);
           setShowUpdateModal(true);
@@ -540,7 +540,7 @@ const App = () => {
 
     loadDynamicConfig();
     checkAppUpdates();
-    
+
     // Slight delay so popup doesn't clash with update modal immediately
     setTimeout(() => {
       checkPromoPopup();
@@ -635,15 +635,15 @@ const App = () => {
       <DownloadProvider>
         <Router>
           {showUpdateModal && (
-            <AppUpdateModal 
-              updateData={updateData} 
-              onClose={handleCloseUpdate} 
+            <AppUpdateModal
+              updateData={updateData}
+              onClose={handleCloseUpdate}
             />
           )}
           {!showUpdateModal && showPromoModal && (
-            <PromoPopupModal 
-              promoData={promoData} 
-              onClose={handleClosePromo} 
+            <PromoPopupModal
+              promoData={promoData}
+              onClose={handleClosePromo}
             />
           )}
           <AppShell />

@@ -1,4 +1,5 @@
 import { decryptData } from './encryption';
+import config from './config';
 import { get, set, del } from 'idb-keyval';
 
 const memoryCache = {};
@@ -150,7 +151,7 @@ export const fetchWithCache = async (url, cacheKey, ttlMs = 30 * 1000) => {
 };
 
 export const getBackendUrl = () => {
-  let backendUrl = import.meta.env.VITE_BACKEND_API_URL || 'https://naino-app-backend-production.up.railway.app';
+  let backendUrl = config.BACKEND_API_URL || 'https://naino-app-backend-production.up.railway.app';
   try {
     const rawConfig = localStorage.getItem('naino_global_config');
     if (rawConfig) {
@@ -175,7 +176,7 @@ export const fetchBackendAPI = async (endpoint, method = 'GET', body = null) => 
     method,
     headers: {
       'Content-Type': 'application/json',
-      'x-api-key': import.meta.env.VITE_API_KEY
+      'x-api-key': config.API_KEY
     }
   };
   

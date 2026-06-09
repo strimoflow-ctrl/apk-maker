@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Eye, EyeOff, Camera, LogOut, Send, AlertTriangle, ShieldCheck, User, X, Crown, Loader2, CheckCircle, Sparkles, Smartphone, QrCode, Edit2, BadgeCheck, BookOpen, Timer, Flame, TrendingUp, Tv, Calendar, ChevronRight, Plus, Trash2, Pin, Clock, ClipboardList, CheckSquare, Award, Lightbulb, Smile } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { fetchWithCache, fetchBackendAPI, getDynamicLink, getBackendUrl } from '../utils/api';
+import config from '../utils/config';
 import AvatarCropper from '../components/AvatarCropper';
 import ConfirmModal from '../components/ConfirmModal';
 import PostItem from '../components/Community/PostItem';
@@ -15,7 +16,7 @@ const AccountScreen = () => {
   
   // Environment Configurations
   const backendUrl = getBackendUrl();
-  const imgbbKey = import.meta.env.VITE_IMGBB_API_KEY || '4c0c2a2c16a284fcd18ea8ef0cf199ed';
+  const imgbbKey = config.IMGBB_API_KEY;
 
   const [keyVisible, setKeyVisible] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState(localStorage.getItem('naino_user_avatar') || null);
