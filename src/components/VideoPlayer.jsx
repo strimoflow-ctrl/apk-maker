@@ -1,7 +1,6 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { Play, Pause, Volume2, VolumeX, Maximize, Minimize, Settings, FastForward, Rewind, SkipBack, SkipForward } from 'lucide-react';
-import { Capacitor } from '@capacitor/core';
-import { StatusBar } from '@capacitor/status-bar';
+import NativeBridge from '../utils/NativeBridge';
 import { logStudySession } from '../utils/progressTracker';
 import { decryptString } from '../utils/encryption';
 
@@ -29,7 +28,7 @@ const VideoPlayer = ({ videoUrl, title, courseId, lectureId, courseTitle, onVide
     const decryptedUrl = decryptString(url);
 
     // Handle relative /dl/ paths for Capacitor
-    if (decryptedUrl.startsWith('/dl/') && Capacitor.isNativePlatform()) {
+    if (decryptedUrl.startsWith('/dl/') && NativeBridge.isNative()) {
       return `https://filestreambot-1-jx2x.onrender.com${decryptedUrl}`;
     }
     if (decryptedUrl.startsWith('http://') && !decryptedUrl.includes('localhost')) {
@@ -279,20 +278,20 @@ const VideoPlayer = ({ videoUrl, title, courseId, lectureId, courseTitle, onVide
     const handleFullscreenChange = async () => {
       setIsFullscreen(!!document.fullscreenElement);
 
-      // Capacitor Status Bar logic for Immersive Mode
-      if (Capacitor.isNativePlatform()) {
+      // Native App Status Bar logic for Immersive Mode (Delegated to Android Kotlin)
+      if (NativeBridge.isNative()) {
         try {
           if (document.fullscreenElement) {
-            await StatusBar.hide();
+            // Future Kotlin call: window.Android.hideStatusBar()
           } else {
-            await StatusBar.show();
+            // Future Kotlin call: window.Android.showStatusBar()
             setIsZoomed(false);
             if (window.screen && window.screen.orientation && window.screen.orientation.unlock) {
               window.screen.orientation.unlock();
             }
           }
         } catch (e) {
-          console.warn("StatusBar Error:", e);
+          console.error("Status Bar NativeBridge Error:", e);
         }
       }
     };

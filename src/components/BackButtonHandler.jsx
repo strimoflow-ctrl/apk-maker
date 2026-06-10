@@ -1,7 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Capacitor } from '@capacitor/core';
-import { App as CapacitorApp } from '@capacitor/app';
+
 
 /**
  * BackButtonHandler
@@ -37,33 +36,9 @@ const BackButtonHandler = () => {
     }
   }, [location.pathname]);
 
-  // 1. Native Capacitor Back Button Interception
-  useEffect(() => {
-    if (!Capacitor.isNativePlatform()) return;
-
-    const backHandler = CapacitorApp.addListener('backButton', () => {
-      const currentPath = locationRef.current.pathname;
-      const isHome = currentPath === '/';
-
-      if (showExitModalRef.current) {
-        // If exit confirmation is already open, pressing back closes it
-        setShowExitModal(false);
-        return;
-      }
-
-      if (isHome) {
-        // On Home screen, show exit confirmation dialog
-        setShowExitModal(true);
-      } else {
-        // Perform natural history back for all non-home screens
-        navigate(-1);
-      }
-    });
-
-    return () => {
-      backHandler.then(h => h.remove());
-    };
-  }, [navigate]);
+  // 1. Native Capacitor Back Button Interception (REMOVED)
+  // Kotlin WebViewScreen handles hardware back button by calling webView.goBack().
+  // This triggers the popstate event below natively!
 
   // 2. Web Browser Back Button Interception (Active on ALL platforms including native WebView)
   useEffect(() => {
@@ -100,10 +75,10 @@ const BackButtonHandler = () => {
   }, [navigate]);
 
   const handleExit = () => {
-    if (Capacitor.isNativePlatform()) {
-      CapacitorApp.exitApp();
+    if (typeof window !== 'undefined' && window.Android && window.Android.exitApp) {
+      window.Android.exitApp();
     } else {
-      window.close(); // Web pe (DevTools testing ke liye)
+      window.close(); // Web fallback
     }
   };
 

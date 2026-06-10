@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, ExternalLink, Calendar, Newspaper, Loader2, Sparkles } from 'lucide-react';
 import { getDynamicLink, fetchBackendAPI } from '../utils/api';
-import { Capacitor } from '@capacitor/core';
+
 
 const NewsScreen = () => {
   const navigate = useNavigate();

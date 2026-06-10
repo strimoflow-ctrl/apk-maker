@@ -1,13 +1,10 @@
 import { getToken, onMessage } from "firebase/messaging";
 import { messaging } from "../firebase";
 import { fetchBackendAPI } from "./api";
-import { PushNotifications } from '@capacitor/push-notifications';
 import config from "./config";
+import NativeBridge from "./NativeBridge";
 
-// Note: To receive tokens, you MUST pass your VAPID key below
-// Generate this key in Firebase Console -> Project Settings -> Cloud Messaging -> Web Push certificates
 const VAPID_KEY = config.FIREBASE_VAPID_KEY;
-const isCapacitor = typeof window !== 'undefined' && !!window.Capacitor;
 
 export const saveNotificationToLocal = (title, body) => {
   if (!title && !body) return;
@@ -15,7 +12,6 @@ export const saveNotificationToLocal = (title, body) => {
     const existing = localStorage.getItem('naino_notifications_list');
     let notifs = existing ? JSON.parse(existing) : [];
     
-    // Check if duplicate (same title/body within last 5 seconds)
     const isDuplicate = notifs.some(n => 
       n.title === title && 
       n.body === body && 
@@ -30,11 +26,9 @@ export const saveNotificationToLocal = (title, body) => {
         timestamp: Date.now(),
         read: false
       });
-      // Keep only last 50 notifications
       if (notifs.length > 50) notifs = notifs.slice(0, 50);
       localStorage.setItem('naino_notifications_list', JSON.stringify(notifs));
       
-      // Dispatch event to update UI badges
       window.dispatchEvent(new Event('notificationsUpdated'));
     }
   } catch (e) {
@@ -43,69 +37,14 @@ export const saveNotificationToLocal = (title, body) => {
 };
 
 export const requestNotificationPermission = async () => {
-  if (isCapacitor) {
-    try {
-      let permStatus = await PushNotifications.checkPermissions();
-      if (permStatus.receive === 'prompt') {
-        permStatus = await PushNotifications.requestPermissions();
-      }
-      
-      if (permStatus.receive === 'granted') {
-        // Remove existing listeners first to prevent duplicates
-        await PushNotifications.removeAllListeners();
-
-        // Register token
-        await PushNotifications.addListener('registration', async (token) => {
-          console.log('Native Push Registration Token:', token.value);
-          const userCode = localStorage.getItem('naino_access_token');
-          const deviceId = localStorage.getItem('naino_device_uuid');
-          if (userCode && userCode !== 'XXXXXX') {
-            try {
-              await fetchBackendAPI('/api/keys/update', 'POST', {
-                code: userCode,
-                deviceId: deviceId,
-                updates: { fcmToken: token.value }
-              });
-              console.log('Native FCM Token saved to backend successfully.');
-            } catch (err) {
-              console.error('Failed to save native FCM token to backend:', err);
-            }
-          }
-        });
-
-        await PushNotifications.addListener('registrationError', (error) => {
-          console.error('Native Push Registration Error:', error);
-        });
-
-        await PushNotifications.addListener('pushNotificationReceived', (notification) => {
-          console.log('Native Push Received in Foreground:', notification);
-          saveNotificationToLocal(notification.title, notification.body);
-          if (window.onNativePushReceived) {
-            window.onNativePushReceived(notification);
-          }
-        });
-
-        await PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
-          console.log('Native Push Action Performed:', action);
-          const notification = action.notification;
-          if (notification) {
-            saveNotificationToLocal(notification.title, notification.body);
-          }
-        });
-
-        await PushNotifications.register();
-        return true;
-      } else {
-        console.log('Native push notification permission denied.');
-        return false;
-      }
-    } catch (error) {
-      console.error('Error during native push notification setup:', error);
-      return false;
-    }
+  if (NativeBridge.isNative()) {
+    // In native mode, Kotlin handles its own Push Notifications and tokens via Firebase Android SDK.
+    // We just return true or request permission natively if needed in future.
+    console.log("Native mode: Push notifications handled by Kotlin Android App.");
+    return true;
   }
 
-  // Browser-based notification registration
+  // Browser-based notification registration for PC Testing
   try {
     if (!('Notification' in window)) {
       console.log('This browser does not support desktop notification');
@@ -121,13 +60,11 @@ export const requestNotificationPermission = async () => {
     if (permission === 'granted') {
       console.log('Notification permission granted.');
       
-      // Get FCM token if VAPID key is provided
       if (VAPID_KEY) {
         try {
           const token = await getToken(messaging, { vapidKey: VAPID_KEY });
           if (token) {
             console.log('FCM Token generated:', token);
-            // Save token to backend securely
             const userCode = localStorage.getItem('naino_access_token');
             const deviceId = localStorage.getItem('naino_device_uuid');
             if (userCode && userCode !== 'XXXXXX') {
@@ -145,7 +82,7 @@ export const requestNotificationPermission = async () => {
           console.log('An error occurred while retrieving token. ', tokenError);
         }
       } else {
-        console.log('VAPID_KEY not provided. Add VITE_FIREBASE_VAPID_KEY to your .env to receive push tokens.');
+        console.log('VAPID_KEY not provided.');
       }
       return true;
     } else {
@@ -159,22 +96,9 @@ export const requestNotificationPermission = async () => {
 };
 
 export const listenForForegroundMessages = (onMessageReceivedCallback) => {
-  if (isCapacitor) {
-    // For native app, register the callback globally so the push listener can call it
-    window.onNativePushReceived = (notification) => {
-      if (onMessageReceivedCallback) {
-        onMessageReceivedCallback({
-          notification: {
-            title: notification.title,
-            body: notification.body
-          },
-          data: notification.data
-        });
-      }
-    };
-    return () => {
-      window.onNativePushReceived = null;
-    };
+  if (NativeBridge.isNative()) {
+    // Native app handles its own foreground notifications natively
+    return () => {};
   }
 
   if (messaging) {
@@ -189,7 +113,6 @@ export const listenForForegroundMessages = (onMessageReceivedCallback) => {
       if (onMessageReceivedCallback) {
         onMessageReceivedCallback(payload);
       } else {
-        // Fallback default alert for foreground notification
         alert(`${payload.notification?.title || 'Notification'}\n${payload.notification?.body || ''}`);
       }
     });

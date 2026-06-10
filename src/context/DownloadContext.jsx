@@ -1,12 +1,35 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { set, get, keys, del } from 'idb-keyval';
 import { useAlert } from './AlertContext';
-import { LocalNotifications } from '@capacitor/local-notifications';
-import { KeepAwake } from '@capacitor-community/keep-awake';
-import { Capacitor, CapacitorHttp } from '@capacitor/core';
-import { Filesystem, Directory } from '@capacitor/filesystem';
+import NativeBridge from '../utils/NativeBridge';
 
-const isCapacitor = Capacitor.isNativePlatform();
+const isCapacitor = NativeBridge.isNative();
+
+const LocalNotifications = {
+  requestPermissions: async () => {},
+  schedule: async () => {},
+  cancel: async () => {},
+  createChannel: async () => {}
+};
+
+const KeepAwake = {
+  keepAwake: async () => {},
+  allowSleep: async () => {}
+};
+
+const CapacitorHttp = {
+  request: async () => ({ headers: {} })
+};
+
+const Filesystem = {
+  writeFile: async () => ({ uri: '' }),
+  getUri: async () => ({ uri: '' }),
+  addListener: async () => ({ remove: () => {} }),
+  downloadFile: async () => ({}),
+  appendFile: async () => {},
+  readFile: async () => ({ data: '' })
+};
+const Directory = { Data: 'DATA' };
 
 // Helper to calculate a stable numeric ID from string key (required by LocalNotifications)
 const getNotificationId = (key) => {

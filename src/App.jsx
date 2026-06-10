@@ -49,7 +49,7 @@ import AppUpdateModal from './components/AppUpdateModal';
 import PromoPopupModal from './components/PromoPopupModal';
 import { db } from './firebase';
 import { doc, getDoc } from 'firebase/firestore';
-import { Capacitor } from '@capacitor/core';
+import NativeBridge from './utils/NativeBridge';
 
 // ─── Root Section Paths ────────────────────────────────────────────────────────
 // Jab user Home se kisi ROOT section me jaata hai, usse REPLACE use karo (push nahi).
@@ -500,7 +500,7 @@ const App = () => {
     const checkAppUpdates = async () => {
       try {
         // Only show APK updates if running natively on an Android/iOS device, not Web
-        if (!Capacitor.isNativePlatform()) return;
+        if (!NativeBridge.isNative()) return;
 
         const updateRes = await fetchWithCache('/api/config/app_update.json', 'cache_app_update', 5 * 60 * 1000);
         if (updateRes && updateRes.latestVersionCode > APP_VERSION_CODE) {

@@ -1,8 +1,6 @@
 import React, { useState } from 'react';
 import { Smartphone, Download, AlertTriangle, Loader2 } from 'lucide-react';
-import { Filesystem, Directory } from '@capacitor/filesystem';
-// import { FileOpener } from '@capacitor-community/file-opener';
-import { Capacitor } from '@capacitor/core';
+import NativeBridge from '../utils/NativeBridge';
 
 const AppUpdateModal = ({ updateData, onClose }) => {
   const [downloading, setDownloading] = useState(false);
@@ -14,62 +12,9 @@ const AppUpdateModal = ({ updateData, onClose }) => {
   const handleUpdate = async () => {
     let url = updateData.apkUrl;
     if (!url.startsWith('http')) {
-      // Use raw github user content or your Netlify proxy
       url = `https://nainoapi.netlify.app/${url}`;
     }
-
-    // If not running natively on Android, fallback to browser
-    if (Capacitor.getPlatform() !== 'android') {
-      window.open(url, '_system');
-      return;
-    }
-
-    try {
-      setDownloading(true);
-      setProgress(0);
-
-      // Listen for download progress
-      const progressListener = await Filesystem.addListener('progress', (progressEvent) => {
-        if (progressEvent && progressEvent.bytes && progressEvent.contentLength) {
-          setProgress(Math.round((progressEvent.bytes / progressEvent.contentLength) * 100));
-        }
-      });
-
-      const fileName = `naino_update_v${updateData.latestVersionCode}.apk`;
-      
-      const downloadRes = await Filesystem.downloadFile({
-        url: url,
-        path: fileName,
-        directory: Directory.Cache,
-        progress: true
-      });
-
-      // Stop listening to progress
-      progressListener.remove();
-      setProgress(100);
-
-      // Give filesystem a moment
-      setTimeout(async () => {
-        try {
-          const { FileOpener } = await import('@capacitor-community/file-opener');
-          await FileOpener.open({
-            filePath: downloadRes.path,
-            contentType: 'application/vnd.android.package-archive',
-          });
-          setDownloading(false);
-        } catch (err) {
-          console.error('FileOpener Error:', err);
-          window.open(url, '_system');
-          setDownloading(false);
-        }
-      }, 500);
-
-    } catch (err) {
-      console.error('Download Error:', err);
-      // Fallback to browser download if filesystem fails
-      window.open(url, '_system');
-      setDownloading(false);
-    }
+    window.open(url, '_blank');
   };
 
   return (

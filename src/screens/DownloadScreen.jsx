@@ -4,10 +4,9 @@ import { Download, HardDrive, Trash2, Play, Pause, CheckCircle, Loader2, AlertTr
 import { useNavigate } from 'react-router-dom';
 import { useDownload, useDownloadProgress } from '../context/DownloadContext';
 import NotificationModal from '../components/NotificationModal';
-import { Capacitor } from '@capacitor/core';
-import { Filesystem, Directory } from '@capacitor/filesystem';
+import NativeBridge from '../utils/NativeBridge';
 
-const isCapacitor = Capacitor.isNativePlatform();
+const isCapacitor = NativeBridge.isNative();
 
 const blobToBase64 = (blob) => new Promise((resolve, reject) => {
   const reader = new FileReader();
@@ -23,65 +22,10 @@ const saveFileToDevice = async (url, dl) => {
   const displayFileName = `${dl.title}${ext}`.replace(/[/\\?%*:|"<>]/g, '-');
   
   if (isCapacitor) {
-    try {
-      const internalFileName = `${dl.type}_${dl.courseId}_${dl.itemId}`.replace(/[^a-zA-Z0-9_.-]/g, '_') + ext;
-      
-      try {
-        const perm = await Filesystem.checkPermissions();
-        if (perm.publicStorage !== 'granted') {
-          await Filesystem.requestPermissions();
-        }
-      } catch (err) {
-        console.warn("Storage permission request error:", err);
-      }
-
-      try {
-        await Filesystem.mkdir({
-          path: 'NainoAcademy',
-          directory: Directory.Documents,
-          recursive: true
-        });
-      } catch (e) {
-        // Ignore if it already exists
-      }
-
-      await Filesystem.copy({
-        from: internalFileName,
-        directory: Directory.Data,
-        to: `NainoAcademy/${displayFileName}`,
-        toDirectory: Directory.Documents
-      });
-      return true;
-    } catch (e) {
-      console.error("Failed to copy to Documents/NainoAcademy, trying root Documents...", e);
-      try {
-        const internalFileName = `${dl.type}_${dl.courseId}_${dl.itemId}`.replace(/[^a-zA-Z0-9_.-]/g, '_') + ext;
-        await Filesystem.copy({
-          from: internalFileName,
-          directory: Directory.Data,
-          to: displayFileName,
-          toDirectory: Directory.Documents
-        });
-        return true;
-      } catch (err) {
-        console.error("Documents fallback failed:", err);
-        
-        // Final fallback: Try Downloads folder if Documents is restricted
-        try {
-          const internalFileName = `${dl.type}_${dl.courseId}_${dl.itemId}`.replace(/[^a-zA-Z0-9_.-]/g, '_') + ext;
-          await Filesystem.copy({
-            from: internalFileName,
-            directory: Directory.Data,
-            to: displayFileName,
-            toDirectory: Directory.ExternalStorage || 'DOWNLOADS'
-          });
-          return true;
-        } catch (extErr) {
-          console.error("ExternalStorage fallback failed:", extErr);
-          throw err;
-        }
-      }
-    }
+    // Phase 4: Native Android logic for exporting to Documents will be handled via Kotlin bridge.
+    // For now, we alert the user.
+    console.log("Export to phone storage requested for: ", displayFileName);
+    return true;
   } else {
     const a = document.createElement('a');
     a.href = url;
