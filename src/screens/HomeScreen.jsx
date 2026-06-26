@@ -11,12 +11,64 @@ import { fetchWithCache, fetchBackendAPI } from '../utils/api';
 import BannerCarousel from '../components/BannerCarousel';
 import ActiveUsersWidget from '../components/ActiveUsersWidget';
 
+const fallbackHeadlines = [
+  "🔥 NEET 2026 Latest Updates",
+  "📢 PW & Unacademy New Batches Live",
+  "⚡ Daily Practice Problems Updated",
+  "📚 New PDF Modules & Books Added"
+];
+
+// A small, performance-optimized ticker component to prevent parent re-renders and lag issues
+const NewsTicker = ({ headlines }) => {
+  const [index, setIndex] = useState(0);
+  const [visible, setVisible] = useState(true);
+  const headlinesRef = useRef(headlines);
+
+  useEffect(() => {
+    headlinesRef.current = headlines;
+  }, [headlines]);
+
+  useEffect(() => {
+    if (!headlines || headlines.length <= 1) return;
+    const interval = setInterval(() => {
+      // 1. Fade out
+      setVisible(false);
+
+      // 2. Change headline and fade in after a brief delay
+      setTimeout(() => {
+        setIndex((prev) => (prev + 1) % headlinesRef.current.length);
+        setVisible(true);
+      }, 300);
+
+    }, 4000);
+    return () => clearInterval(interval);
+  }, [headlines.length]);
+
+  if (!headlines || headlines.length === 0) return null;
+
+  const currentHeadline = headlines[index % headlines.length];
+
+  return (
+    <div className="flex-1 min-w-0 h-7 flex items-center pl-3 border-l border-white/10 ml-1 relative text-left select-none">
+      <div
+        className={`text-[10px] font-bold text-[#FFD700] tracking-wide truncate w-full flex items-center gap-1.5 transition-all duration-300 ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-1'}`}
+      >
+        <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-blink shrink-0" />
+        <span className="truncate">{currentHeadline}</span>
+      </div>
+    </div>
+  );
+};
+
 const HomeScreen = () => {
   const navigate = useNavigate();
 
   // Avatar and Profile cache
   const [avatarUrl, setAvatarUrl] = useState(localStorage.getItem('naino_user_avatar') || null);
   const [username, setUsername] = useState(localStorage.getItem('naino_user_name') || 'Scholar');
+  const [screenLoading, setScreenLoading] = useState(() => {
+    return !sessionStorage.getItem('naino_home_visited');
+  });
 
 
 
@@ -28,12 +80,17 @@ const HomeScreen = () => {
 
   // Recent activity states
   const [recentActivity, setRecentActivity] = useState([]);
-  
+
   // Notification states
   const [unreadCount, setUnreadCount] = useState(0);
 
   // Unread News State
   const [hasUnreadNews, setHasUnreadNews] = useState(false);
+
+  // News headlines ticker states (only local to prevent parent re-renders)
+  const [newsHeadlines, setNewsHeadlines] = useState([]);
+
+  const activeHeadlines = newsHeadlines.length > 0 ? newsHeadlines : fallbackHeadlines;
 
   useEffect(() => {
     // Listen for avatar/profile updates
@@ -44,26 +101,26 @@ const HomeScreen = () => {
     let lastCachedStr = null;
     let lastUnreadCount = 0;
     let lastReadTimestamp = null;
-    
+
     const calculateUnreadCount = () => {
       try {
         const cachedStr = localStorage.getItem('naino_cached_notifications');
         const lastRead = localStorage.getItem('naino_last_read_notifications_timestamp') || 0;
         if (!cachedStr) return;
-        
+
         if (cachedStr === lastCachedStr && lastRead === lastReadTimestamp) {
           setUnreadCount(lastUnreadCount);
           return;
         }
-        
+
         const notifications = JSON.parse(cachedStr);
-        
+
         const count = notifications.filter(n => new Date(n.createdAt).getTime() > Number(lastRead)).length;
         lastCachedStr = cachedStr;
         lastReadTimestamp = lastRead;
         lastUnreadCount = count;
         setUnreadCount(count);
-      } catch (e) {}
+      } catch (e) { }
     };
 
     const fetchNotifications = async () => {
@@ -76,7 +133,7 @@ const HomeScreen = () => {
           const deletedStr = localStorage.getItem('naino_deleted_notifications');
           const deletedIds = deletedStr ? JSON.parse(deletedStr) : [];
           const activeNotifs = res.filter(n => !deletedIds.includes(n._id));
-          
+
           localStorage.setItem('naino_cached_notifications', JSON.stringify(activeNotifs));
           calculateUnreadCount();
           window.dispatchEvent(new Event('notificationsUpdated'));
@@ -90,7 +147,7 @@ const HomeScreen = () => {
     window.addEventListener('notificationsUpdated', calculateUnreadCount);
     window.addEventListener('badgeUpdateRequired', calculateUnreadCount);
     window.addEventListener('fetchNewNotifications', fetchNotifications);
-    
+
     // Initial fetch on mount
     fetchNotifications();
 
@@ -102,12 +159,25 @@ const HomeScreen = () => {
     };
   }, []);
 
-  // Check for unread news
+  // Check for unread news and load headlines
   useEffect(() => {
     const checkNews = async () => {
       try {
         const data = await fetchBackendAPI('/api/news', 'GET');
         if (data && data.length > 0) {
+          // Slice only 3-4 latest news, format and truncate titles with ".."
+          const formatted = data
+            .slice(0, 4)
+            .map(item => {
+              const title = item.title ? item.title.trim() : '';
+              return title.length > 25 ? title.substring(0, 25) + '..' : title + '..';
+            })
+            .filter(t => t.length > 2);
+
+          if (formatted.length > 0) {
+            setNewsHeadlines(formatted);
+          }
+
           const latestNewsTime = new Date(data[0].createdAt).getTime();
           const lastSeen = localStorage.getItem('naino_last_seen_news_time');
           if (!lastSeen || latestNewsTime > parseInt(lastSeen, 10)) {
@@ -262,10 +332,180 @@ const HomeScreen = () => {
     }
   }, []);
 
+  useEffect(() => {
+    if (!sessionStorage.getItem('naino_home_visited')) {
+      const timer = setTimeout(() => {
+        setScreenLoading(false);
+        sessionStorage.setItem('naino_home_visited', 'true');
+      }, 350); // 350ms premium brief delay for skeleton shimmer to display nicely
+      return () => clearTimeout(timer);
+    }
+  }, []);
 
+  const renderSkeleton = () => (
+    <div className="relative z-10 w-full max-w-lg mx-auto px-4 pt-4">
+      {/* Header Skeleton */}
+      <header className="flex items-center justify-between py-3 mb-6 bg-black/40 backdrop-blur-xl rounded-2xl px-3 border border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.5)]">
+        <div className="flex items-center gap-2">
+          <div className="w-10 h-10 rounded-full bg-white/5 border border-white/10 relative overflow-hidden shrink-0">
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skeleton-shimmer" />
+          </div>
+          <div className="space-y-1">
+            <div className="w-20 h-3 bg-white/10 rounded relative overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skeleton-shimmer" />
+            </div>
+            <div className="w-28 h-2 bg-white/5 rounded relative overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skeleton-shimmer" />
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-white/5 border border-white/10 relative overflow-hidden shrink-0">
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skeleton-shimmer" />
+          </div>
+          <div className="w-10 h-10 rounded-full bg-white/5 border border-white/10 relative overflow-hidden shrink-0">
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skeleton-shimmer" />
+          </div>
+          <div className="w-10 h-10 rounded-full bg-[#222] border border-white/10 relative overflow-hidden shrink-0">
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skeleton-shimmer" />
+          </div>
+        </div>
+      </header>
+
+      {/* Banner Carousel Skeleton */}
+      <div className="w-full aspect-[16/9] md:aspect-[2.1/1] rounded-[2.2rem] bg-[#1A1A1A] border border-white/5 relative overflow-hidden shadow-2xl mb-6">
+        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skeleton-shimmer" />
+      </div>
+
+      {/* Quick Access Slider Skeleton */}
+      <div className="flex gap-3 overflow-x-hidden mb-6 px-2">
+        {Array.from({ length: 6 }).map((_, idx) => (
+          <div key={idx} className="flex flex-col items-center gap-1.5 shrink-0 w-[56px]">
+            <div className="w-12 h-12 rounded-[14px] bg-[#111] border border-white/5 relative overflow-hidden shadow-md">
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skeleton-shimmer" />
+            </div>
+            <div className="w-10 h-2 bg-white/5 rounded relative overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skeleton-shimmer" />
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Directory Section Title Skeleton */}
+      <div className="flex items-center gap-2 mb-4">
+        <div className="w-1 h-4 bg-white/10 rounded-full" />
+        <div className="w-32 h-3 bg-white/10 rounded relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skeleton-shimmer" />
+        </div>
+      </div>
+
+      {/* Directory Grid Cards Skeleton (9 cards + 2 wide cards) */}
+      <div className="grid grid-cols-3 gap-3 mb-8">
+        {Array.from({ length: 9 }).map((_, idx) => (
+          <div key={idx} className="flex flex-col items-center justify-between p-3 bg-[#1A1A1A] border border-white/5 rounded-2xl min-h-[105px] relative overflow-hidden">
+            <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 relative overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skeleton-shimmer" />
+            </div>
+            <div className="w-16 h-2.5 bg-white/10 rounded relative overflow-hidden mt-2">
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skeleton-shimmer" />
+            </div>
+            <div className="w-12 h-2 bg-white/5 rounded relative overflow-hidden mt-1">
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skeleton-shimmer" />
+            </div>
+          </div>
+        ))}
+        {Array.from({ length: 2 }).map((_, idx) => (
+          <div key={idx} className="col-span-3 flex items-center gap-4 px-5 py-3 bg-[#1A1A1A] border border-white/5 rounded-2xl min-h-[68px] relative overflow-hidden">
+            <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 relative overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skeleton-shimmer" />
+            </div>
+            <div className="flex-1 space-y-1.5">
+              <div className="w-24 h-3 bg-white/10 rounded relative overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skeleton-shimmer" />
+              </div>
+              <div className="w-36 h-2.5 bg-white/5 rounded relative overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skeleton-shimmer" />
+              </div>
+            </div>
+            <div className="w-4 h-4 rounded-full bg-white/5" />
+          </div>
+        ))}
+      </div>
+
+      {/* Impact Section Title Skeleton */}
+      <div className="flex items-center gap-2 mb-4">
+        <div className="w-1 h-4 bg-white/10 rounded-full" />
+        <div className="w-20 h-3 bg-white/10 rounded relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skeleton-shimmer" />
+        </div>
+      </div>
+
+      {/* Impact Cards Skeleton */}
+      <div className="grid grid-cols-3 gap-3 mb-3">
+        {Array.from({ length: 3 }).map((_, idx) => (
+          <div key={idx} className="bg-[#1A1A1A] border border-white/5 rounded-2xl p-4 min-h-[115px] flex flex-col justify-between relative overflow-hidden">
+            <div className="w-7 h-7 rounded-xl bg-white/5 border border-white/10 relative overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skeleton-shimmer" />
+            </div>
+            <div className="space-y-2 mt-3">
+              <div className="w-14 h-4 bg-white/10 rounded relative overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skeleton-shimmer" />
+              </div>
+              <div className="w-10 h-2 bg-white/5 rounded relative overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skeleton-shimmer" />
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Wide Progress Card Skeleton */}
+      <div className="bg-[#1A1A1A] border border-white/5 rounded-[2rem] p-5 flex items-center justify-between shadow-lg mb-8 relative overflow-hidden">
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 relative overflow-hidden shrink-0">
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skeleton-shimmer" />
+          </div>
+          <div className="space-y-1.5">
+            <div className="w-16 h-4 bg-white/10 rounded relative overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skeleton-shimmer" />
+            </div>
+            <div className="w-28 h-2.5 bg-white/5 rounded relative overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skeleton-shimmer" />
+            </div>
+          </div>
+        </div>
+        <div className="w-14 h-14 rounded-full bg-white/5 border border-white/10 relative overflow-hidden shrink-0">
+          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skeleton-shimmer" />
+        </div>
+      </div>
+    </div>
+  );
+
+  if (screenLoading) {
+    return (
+      <div className="flex-1 w-full overflow-y-auto bg-[#000] text-white overflow-x-hidden font-inter pb-24 page-transition relative pt-[var(--safe-area-top)]">
+        {/* Golden Grid Background Overlay */}
+        <div className="fixed inset-0 z-0 pointer-events-none flex justify-center items-center">
+          <div className="absolute inset-0 bg-golden-grid opacity-60"></div>
+        </div>
+        {renderSkeleton()}
+        {/* Required for skeleton shimmer animations */}
+        <style dangerouslySetInnerHTML={{
+          __html: `
+          @keyframes skeleton-shimmer {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+          }
+          .skeleton-shimmer {
+            animation: skeleton-shimmer 2s infinite linear;
+          }
+        `}} />
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-[#000] text-white overflow-x-hidden font-inter pb-24 page-transition relative">
+    <div className="flex-1 w-full overflow-y-auto bg-[#000] text-white overflow-x-hidden font-inter pb-24 page-transition relative pt-[var(--safe-area-top)]">
       <style>{`
         @media (prefers-reduced-motion: reduce) {
           * { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
@@ -348,18 +588,18 @@ const HomeScreen = () => {
       <div className="relative z-10 w-full max-w-lg mx-auto px-4 pt-4">
 
         {/* --- 1. TOP HEADER SECTION --- */}
-        <header className="flex items-center justify-between py-3 mb-6 bg-[#1A1A1A]/95 rounded-2xl px-2 border border-white/5 shadow-md">
+        <header className="flex items-center justify-between py-3 mb-6 bg-black/40 backdrop-blur-xl rounded-2xl px-3 border border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.5)]">
           <div className="flex items-center gap-2">
-            <div className="w-9 h-9 rounded-full bg-[#1A1A1A] border border-[#FFD700]/30 flex items-center justify-center overflow-hidden shrink-0 shadow-[0_0_10px_rgba(255,215,0,0.1)]">
-              <img src="/logo.png" alt="Logo" className="w-6 h-6 object-contain" />
+            <div className="w-10 h-10 rounded-full bg-black/50 border border-[#FFD700]/30 flex items-center justify-center overflow-hidden shrink-0 shadow-[0_0_10px_rgba(255,215,0,0.15)]">
+              <img src="/logo.png" alt="Logo" className="w-7 h-7 object-contain animate-pulse" />
             </div>
             <div>
               <div className="flex items-center leading-none">
-                <span className="font-oswald text-sm font-bold tracking-tight text-white uppercase">
+                <span className="font-oswald text-[15px] font-bold tracking-tight text-white uppercase">
                   NANO <span className="text-[#FFD700]">ACADEMY</span>
                 </span>
               </div>
-              <span className="text-[7px] text-[#8E8E93] tracking-[0.2em] font-semibold uppercase block mt-0.5">
+              <span className="text-[7.5px] text-gray-400 tracking-[0.2em] font-semibold uppercase block mt-0.5">
                 Learn • Grow • Succeed
               </span>
             </div>
@@ -368,18 +608,18 @@ const HomeScreen = () => {
           <div className="flex items-center gap-3">
             <button
               onClick={() => setIsSearchOpen(true)}
-              className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-gray-300 hover:text-[#FFD700] hover:scale-105 active:scale-95 transition-all"
+              className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-gray-300 hover:text-[#FFD700] hover:scale-105 active:scale-95 transition-all shadow-md"
             >
-              <Search size={16} />
+              <Search size={18} />
             </button>
 
-            <button 
+            <button
               onClick={() => navigate('/notifications')}
-              className="relative w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-gray-300 hover:text-[#FFD700] hover:scale-105 active:scale-95 transition-all"
+              className="relative w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-gray-300 hover:text-[#FFD700] hover:scale-105 active:scale-95 transition-all shadow-md"
             >
-              <Bell size={16} />
+              <Bell size={18} />
               {unreadCount > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 min-w-[14px] h-3.5 px-1 bg-red-500 text-white text-[8px] font-black rounded-full flex items-center justify-center border border-black scale-90">
+                <span className="absolute -top-0.5 -right-0.5 min-w-[15px] h-3.75 px-1 bg-red-500 text-white text-[8px] font-black rounded-full flex items-center justify-center border border-black scale-90">
                   {unreadCount > 4 ? '4+' : unreadCount}
                 </span>
               )}
@@ -387,12 +627,12 @@ const HomeScreen = () => {
 
             <div
               onClick={() => navigate('/account')}
-              className="w-9 h-9 rounded-full border border-[#FFD700] bg-[#222] flex items-center justify-center text-[#FFD700] overflow-hidden cursor-pointer hover:shadow-[0_0_10px_rgba(255,215,0,0.3)] hover:scale-105 active:scale-95 transition-all"
+              className="w-10 h-10 rounded-full border border-[#FFD700] bg-[#222] flex items-center justify-center text-[#FFD700] overflow-hidden cursor-pointer hover:shadow-[0_0_12px_rgba(255,215,0,0.4)] hover:scale-105 active:scale-95 transition-all"
             >
               {avatarUrl ? (
                 <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
               ) : (
-                <User size={16} />
+                <User size={18} />
               )}
             </div>
           </div>
@@ -477,30 +717,32 @@ const HomeScreen = () => {
               return (
                 <button
                   key={idx}
-                  onClick={() => { 
+                  onClick={() => {
                     if (item.isComingSoon) return; // Disable click
                     if (item.isNews) {
                       localStorage.setItem('naino_last_seen_news_time', Date.now().toString());
                       setHasUnreadNews(false);
                     }
-                    if (item.path !== '#') navigate(item.path); 
+                    if (item.path !== '#') navigate(item.path);
                   }}
                   style={{ animationDelay: `${idx * 45}ms` }}
-                  className={`grid-card-anim group relative flex border border-white/5 rounded-2xl transition-all duration-300 ${item.isComingSoon ? 'opacity-70 cursor-not-allowed' : 'active:scale-95 hover:border-[#FFD700]/30 hover:-translate-y-1'} shadow-[0_4px_20px_rgba(0,0,0,0.4)] ${
-                    isWide 
-                      ? 'col-span-3 flex-row items-center gap-4 px-5 py-3 bg-gradient-to-r from-[#1A1A1A] to-[#141414] min-h-[68px]' 
+                  className={`grid-card-anim group relative flex border border-white/5 rounded-2xl transition-all duration-300 ${item.isComingSoon ? 'opacity-70 cursor-not-allowed' : 'active:scale-95 hover:border-[#FFD700]/30 hover:-translate-y-1'} shadow-[0_4px_20px_rgba(0,0,0,0.4)] ${isWide
+                      ? 'col-span-3 flex-row items-center gap-4 px-5 py-3 bg-gradient-to-r from-[#1A1A1A] to-[#141414] min-h-[68px]'
                       : 'flex-col items-center justify-between p-3 bg-[#1A1A1A] min-h-[105px]'
-                  }`}
+                    }`}
                 >
                   <div className={`absolute inset-0 opacity-[0.02] group-hover:opacity-[0.05] rounded-full transition-opacity duration-300 ${item.bgClass}`} />
-                  <div className={`rounded-xl bg-white/5 border border-white/10 flex items-center justify-center shadow-inner transition-colors group-hover:border-white/20 relative overflow-hidden shrink-0 ${
-                    isWide ? 'w-10 h-10' : 'w-10 h-10 mb-1.5'
-                  }`}>
+                  <div className={`rounded-xl bg-white/5 border border-white/10 flex items-center justify-center shadow-inner transition-colors group-hover:border-white/20 relative overflow-hidden shrink-0 ${isWide ? 'w-10 h-10' : 'w-10 h-10 mb-1.5'
+                    }`}>
                     <div className={`absolute inset-0 opacity-10 rounded-full ${item.bgClass}`} />
                     <Icon size={18} className={`${item.color} ${item.iconClass || ''} drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] z-10 transition-transform`} />
                   </div>
-                  
-                  <div className={`flex flex-col ${isWide ? 'flex-1 min-w-0 text-left' : 'items-center text-center w-full'}`}>
+
+                  {/* Text Container */}
+                  <div className={`flex flex-col ${isWide
+                      ? (item.isNews ? 'shrink-0 text-left' : 'flex-1 min-w-0 text-left')
+                      : 'items-center text-center w-full'
+                    }`}>
                     <span className={`font-oswald font-bold text-white tracking-wide leading-tight truncate w-full ${isWide ? 'text-sm' : 'text-[11px]'}`}>
                       {item.label}
                     </span>
@@ -508,19 +750,24 @@ const HomeScreen = () => {
                       {item.desc}
                     </span>
                   </div>
-                  
+
+                  {/* Animated News Ticker (Middle Empty Space) */}
+                  {item.isNews && (
+                    <NewsTicker headlines={activeHeadlines} />
+                  )}
+
                   {isWide && (
                     <ChevronRight size={16} className="text-gray-600 shrink-0 group-hover:text-white transition-colors" />
-                  )}    
+                  )}
                   <div className="absolute top-1.5 right-1.5 w-1 h-1 rounded-full bg-white/10 group-hover:bg-[#FFD700] transition-colors" />
-                  
+
                   {item.isNews && hasUnreadNews && (
-                    <div className="absolute -top-1.5 -right-1.5 z-20">
+                    <div className="absolute -top-1.5 -left-1.5 z-20">
                       <div className="relative flex items-center justify-center">
-                         <span className="absolute inset-0 bg-[#FF453A] rounded-full animate-ping opacity-60"></span>
-                         <span className="relative bg-gradient-to-tr from-[#FF453A] to-red-400 text-white text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full shadow-[0_0_15px_rgba(255,69,58,0.6)] border border-[#FF453A]/50">
-                           NEW
-                         </span>
+                        <span className="absolute inset-0 bg-[#FF453A] rounded-full animate-ping opacity-60"></span>
+                        <span className="relative bg-gradient-to-tr from-[#FF453A] to-red-400 text-white text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full shadow-[0_0_15px_rgba(255,69,58,0.6)] border border-[#FF453A]/50">
+                          NEW
+                        </span>
                       </div>
                     </div>
                   )}
@@ -940,6 +1187,13 @@ const HomeScreen = () => {
         }
         .skeleton-shimmer {
           animation: skeleton-shimmer 2s infinite linear;
+        }
+        @keyframes blink {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.3; }
+        }
+        .animate-blink {
+          animation: blink 1.2s infinite;
         }
       `}} />
     </div>

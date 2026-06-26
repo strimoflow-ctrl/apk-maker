@@ -1,12 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, BookOpen, Download, ExternalLink, Loader2, Check, Lock } from 'lucide-react';
-import { useDownload, useDownloadProgress } from '../context/DownloadContext';
-
-const DownloadProgressText = ({ downloadKey }) => {
-  const progressData = useDownloadProgress(downloadKey);
-  return <>{Math.round(progressData?.progress || 0)}%</>;
-};
+import { ArrowLeft, BookOpen, Download, ExternalLink, Loader2, Check, Lock, X } from 'lucide-react';
+import { useDownload, useDownloadProgress, DownloadProgressText } from '../context/DownloadContext';
 import NotificationModal from '../components/NotificationModal';
 import SaveButton from '../components/SaveButton';
 import PremiumModal from '../components/PremiumModal';
@@ -15,10 +10,11 @@ import { isItemLocked } from '../utils/premiumLock';
 
 const BookLibraryScreen = () => {
   const navigate = useNavigate();
-  const { downloadFile, isDownloaded, getOfflineFileUrl, isDownloading } = useDownload();
+  const { downloadFile, isDownloaded, getOfflineFileUrl, isDownloading, cancelDownload } = useDownload();
   const [books, setBooks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('All');
   const [notification, setNotification] = useState({ isOpen: false, title: '', message: '', type: 'success' });
   const [premiumModalOpen, setPremiumModalOpen] = useState(false);
 
@@ -39,16 +35,65 @@ const BookLibraryScreen = () => {
 
   if (loading) {
     return (
-      <div className="w-full min-h-screen flex items-center justify-center bg-[#050505]">
-        <div className="w-12 h-12 border-4 border-[#FFD700] border-t-transparent rounded-full animate-spin" />
+      <div className="min-h-screen bg-[#050505] text-white p-6 md:p-12 pb-12">
+        <div className="max-w-7xl mx-auto">
+          {/* Header Skeleton */}
+          <header className="mb-10 flex flex-col md:flex-row md:items-center justify-between gap-6 animate-pulse">
+            <div className="space-y-2">
+              <div className="w-48 h-8 bg-white/10 rounded relative overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skeleton-shimmer" />
+              </div>
+              <div className="w-64 h-3.5 bg-white/5 rounded relative overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skeleton-shimmer" />
+              </div>
+            </div>
+            <div className="w-full md:w-72 h-10 bg-white/5 rounded-full relative overflow-hidden border border-white/5" />
+          </header>
+
+          {/* Book Grid Skeleton */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-5 mt-6 animate-pulse">
+            {Array.from({ length: 10 }).map((_, idx) => (
+              <div
+                key={idx}
+                className="bg-[#111] border border-white/5 rounded-2xl p-3 sm:p-4 min-h-[250px] sm:min-h-[280px] relative overflow-hidden flex flex-col justify-between"
+              >
+                <div className="flex flex-col h-full">
+                  <div className="w-full h-28 sm:h-36 bg-white/5 rounded-xl relative overflow-hidden mb-3 border border-white/5">
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skeleton-shimmer" />
+                  </div>
+
+                  <div className="flex-1 space-y-1.5">
+                    <div className="w-full h-4 bg-white/10 rounded relative overflow-hidden">
+                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skeleton-shimmer" />
+                    </div>
+                    <div className="w-2/3 h-4 bg-white/10 rounded relative overflow-hidden">
+                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skeleton-shimmer" />
+                    </div>
+                    <div className="w-1/2 h-3 bg-white/5 rounded relative overflow-hidden mt-1">
+                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skeleton-shimmer" />
+                    </div>
+                  </div>
+
+                  <div className="mt-3 w-full h-10 bg-white/5 rounded-lg relative overflow-hidden">
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skeleton-shimmer" />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     );
   }
 
-  const filteredBooks = books.filter(book =>
-    book.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    book.author.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const categories = ['All', ...Array.from(new Set(books.map(b => b.category && b.category.trim()).filter(Boolean)))];
+
+  const filteredBooks = books.filter(book => {
+    const matchesSearch = book.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (book.author && book.author.toLowerCase().includes(searchTerm.toLowerCase()));
+    const matchesCategory = selectedCategory === 'All' || (book.category && book.category.trim() === selectedCategory);
+    return matchesSearch && matchesCategory;
+  });
 
   return (
     <div className="min-h-screen bg-[#050505] text-white p-6 md:p-12 pb-12 page-transition">
@@ -73,6 +118,24 @@ const BookLibraryScreen = () => {
             />
           </div>
         </header>
+
+        {/* Category Pills Bar */}
+        {categories.length > 1 && (
+          <div className="flex gap-2 sm:gap-3 overflow-x-auto pb-4 mb-8 no-scrollbar">
+            {categories.map((cat, idx) => (
+              <button
+                key={idx}
+                onClick={() => setSelectedCategory(cat)}
+                className={`px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold tracking-wide transition-all whitespace-nowrap shrink-0 ${selectedCategory === cat
+                    ? 'bg-[#FFD700] text-black shadow-[0_0_15px_rgba(255,215,0,0.3)] scale-105'
+                    : 'bg-[#111] border border-white/10 text-gray-400 hover:text-white hover:border-white/30'
+                  }`}
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
+        )}
 
         {filteredBooks.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-gray-500">
@@ -103,80 +166,102 @@ const BookLibraryScreen = () => {
                       <h3 className="font-bold text-white text-sm sm:text-base leading-tight uppercase tracking-wide font-oswald line-clamp-2 mb-1 group-hover:text-[#FFD700] transition-colors">
                         {book.title}
                       </h3>
-                      <p className="text-gray-500 text-[10px] sm:text-xs uppercase tracking-widest font-bold">
+                      <p className="text-gray-500 text-[10px] sm:text-xs uppercase tracking-widest font-bold mb-1">
                         {book.author || "Unknown Author"}
                       </p>
+                      {book.category && book.category !== 'General' && (
+                        <span className="inline-block bg-[#FFD700]/10 border border-[#FFD700]/30 text-[#FFD700] text-[9px] font-extrabold px-2 py-0.5 rounded uppercase tracking-widest">
+                          {book.category}
+                        </span>
+                      )}
                     </div>
-                    <SaveButton 
-                      item={{ 
-                        id: `book_${book.id}`, 
-                        type: 'book', 
+                    <SaveButton
+                      item={{
+                        id: `book_${book.id}`,
+                        type: 'book',
                         title: book.title,
                         link: book.link,
                         image: book.image,
                         author: book.author || "Unknown Author"
-                      }} 
+                      }}
                     />
                   </div>
 
-                  <div className="mt-3 flex gap-2">
-                    <button
-                      onClick={async () => {
-                        if (isItemLocked(book)) {
-                          setPremiumModalOpen(true);
-                          return;
-                        }
-                        
-                        const type = 'book';
-                        const courseId = 'library';
-                        const itemId = book.id;
-                        
-                        if (isDownloaded(type, courseId, itemId)) {
-                          const url = await getOfflineFileUrl(type, courseId, itemId);
-                          try {
-                            const res = await fetch(url);
-                            const blob = await res.blob();
-                            const magicBytes = await blob.slice(0, 4).text();
-                            
-                            if (magicBytes.startsWith('PK')) {
-                              const a = document.createElement('a');
-                              a.href = url;
-                              a.download = `${book.title}.zip`;
-                              document.body.appendChild(a);
-                              a.click();
-                              document.body.removeChild(a);
-                              setNotification({
-                                isOpen: true,
-                                title: "ZIP Exported",
-                                message: "This is a ZIP module. It has been exported to your phone's Downloads folder. Please open your File Manager to extract it.",
-                                type: "zip"
-                              });
-                              if (url && url.startsWith('blob:')) {
-                                URL.revokeObjectURL(url);
+                  <div className="mt-3 flex gap-2 w-full">
+                    {isDownloading('book', 'library', book.id) ? (
+                      <>
+                        <div className="flex-1 bg-[#FFD700]/10 border border-[#FFD700]/30 text-[#FFD700] font-bold uppercase tracking-widest py-2 sm:py-2.5 text-[10px] sm:text-xs rounded-lg flex items-center justify-center gap-1 sm:gap-2">
+                          <Loader2 size={14} className="animate-spin" />
+                          <DownloadProgressText downloadKey={`naino_offline_book_library_${book.id}`} />
+                        </div>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            cancelDownload('book', 'library', book.id);
+                          }}
+                          className="px-3 py-2 sm:py-2.5 rounded-lg border border-red-500/30 bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white transition-colors flex items-center justify-center shrink-0"
+                          title="Cancel Download"
+                        >
+                          <X size={14} />
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        onClick={async () => {
+                          if (isItemLocked(book)) {
+                            setPremiumModalOpen(true);
+                            return;
+                          }
+
+                          const type = 'book';
+                          const courseId = 'library';
+                          const itemId = book.id;
+
+                          if (isDownloaded(type, courseId, itemId)) {
+                            const url = await getOfflineFileUrl(type, courseId, itemId);
+                            try {
+                              const res = await fetch(url);
+                              const blob = await res.blob();
+                              const magicBytes = await blob.slice(0, 4).text();
+
+                              if (magicBytes.startsWith('PK')) {
+                                const a = document.createElement('a');
+                                a.href = url;
+                                a.download = `${book.title}.zip`;
+                                document.body.appendChild(a);
+                                a.click();
+                                document.body.removeChild(a);
+                                setNotification({
+                                  isOpen: true,
+                                  title: "ZIP Exported",
+                                  message: "This is a ZIP module. It has been exported to your phone's Downloads folder. Please open your File Manager to extract it.",
+                                  type: "zip"
+                                });
+                                if (url && url.startsWith('blob:')) {
+                                  URL.revokeObjectURL(url);
+                                }
+                              } else {
+                                navigate('/pdf', { state: { file: url, title: book.title } });
                               }
-                            } else {
+                            } catch (e) {
+                              console.error('Failed to parse blob type:', e);
                               navigate('/pdf', { state: { file: url, title: book.title } });
                             }
-                          } catch (e) {
-                            console.error('Failed to parse blob type:', e);
-                            navigate('/pdf', { state: { file: url, title: book.title } });
+                          } else {
+                            downloadFile(type, courseId, itemId, book.link, book.title, 'Book Library', book.author);
                           }
-                        } else if (!isDownloading(type, courseId, itemId)) {
-                          downloadFile(type, courseId, itemId, book.link, book.title, 'Book Library', book.author);
-                        }
-                      }}
-                      className={`w-full ${isItemLocked(book) ? 'bg-[#1a1a1a] hover:bg-[#222] text-[#FFD700] border border-[#FFD700]/30' : 'bg-[#FFD700] hover:bg-white text-black'} font-bold uppercase tracking-widest py-2 sm:py-2.5 text-[10px] sm:text-xs rounded-lg transition-all flex items-center justify-center gap-1 sm:gap-2 shadow-[0_0_15px_rgba(255,215,0,0.3)] hover:shadow-[0_0_25px_rgba(255,255,255,0.5)]`}
-                    >
-                      {isItemLocked(book) ? (
-                         <><Lock size={14} /> Locked</>
-                      ) : isDownloading('book', 'library', book.id) ? (
-                        <><Loader2 size={14} className="animate-spin" /> <DownloadProgressText downloadKey={`naino_offline_book_library_${book.id}`} /></>
-                      ) : isDownloaded('book', 'library', book.id) ? (
-                        <><Check size={14} /> Open</>
-                      ) : (
-                        <><Download size={14} /> Download</>
-                      )}
-                    </button>
+                        }}
+                        className={`w-full ${isItemLocked(book) ? 'bg-[#1a1a1a] hover:bg-[#222] text-[#FFD700] border border-[#FFD700]/30' : 'bg-[#FFD700] hover:bg-white text-black'} font-bold uppercase tracking-widest py-2 sm:py-2.5 text-[10px] sm:text-xs rounded-lg transition-all flex items-center justify-center gap-1 sm:gap-2 shadow-[0_0_15px_rgba(255,215,0,0.3)] hover:shadow-[0_0_25px_rgba(255,255,255,0.5)]`}
+                      >
+                        {isItemLocked(book) ? (
+                          <><Lock size={14} /> Locked</>
+                        ) : isDownloaded('book', 'library', book.id) ? (
+                          <><Check size={14} /> Open</>
+                        ) : (
+                          <><Download size={14} /> Download</>
+                        )}
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -187,16 +272,16 @@ const BookLibraryScreen = () => {
           </div>
         )}
       </div>
-      <NotificationModal 
+      <NotificationModal
         isOpen={notification.isOpen}
         title={notification.title}
         message={notification.message}
         type={notification.type}
         onClose={() => setNotification({ ...notification, isOpen: false })}
       />
-      <PremiumModal 
-        isOpen={premiumModalOpen} 
-        onClose={() => setPremiumModalOpen(false)} 
+      <PremiumModal
+        isOpen={premiumModalOpen}
+        onClose={() => setPremiumModalOpen(false)}
       />
     </div>
   );

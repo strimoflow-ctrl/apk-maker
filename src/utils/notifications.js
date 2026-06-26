@@ -3,6 +3,8 @@ import { messaging } from "../firebase";
 import { fetchBackendAPI } from "./api";
 import config from "./config";
 import NativeBridge from "./NativeBridge";
+import { PushNotifications } from '@capacitor/push-notifications';
+import { Capacitor } from '@capacitor/core';
 
 const VAPID_KEY = config.FIREBASE_VAPID_KEY;
 
@@ -37,11 +39,26 @@ export const saveNotificationToLocal = (title, body) => {
 };
 
 export const requestNotificationPermission = async () => {
-  if (NativeBridge.isNative()) {
-    // In native mode, Kotlin handles its own Push Notifications and tokens via Firebase Android SDK.
-    // We just return true or request permission natively if needed in future.
-    console.log("Native mode: Push notifications handled by Kotlin Android App.");
-    return true;
+  if (Capacitor.isNativePlatform()) {
+    try {
+      let permStatus = await PushNotifications.checkPermissions();
+
+      if (permStatus.receive === 'prompt') {
+        permStatus = await PushNotifications.requestPermissions();
+      }
+
+      if (permStatus.receive === 'granted') {
+        await PushNotifications.register();
+        console.log("PushNotifications registered natively");
+        return true;
+      } else {
+        console.log('User denied native push notifications permission');
+        return false;
+      }
+    } catch (e) {
+      console.error("Native push error:", e);
+      return false;
+    }
   }
 
   // Browser-based notification registration for PC Testing
@@ -118,4 +135,30 @@ export const listenForForegroundMessages = (onMessageReceivedCallback) => {
     });
   }
   return () => {};
+};
+
+export const setupPushNotificationListeners = () => {
+  if (!Capacitor.isNativePlatform()) return;
+
+  PushNotifications.addListener('registration', async (token) => {
+    console.log('Native FCM Token generated:', token.value);
+    const userCode = localStorage.getItem('naino_access_token');
+    const deviceId = localStorage.getItem('naino_device_uuid');
+    
+    if (userCode && userCode !== 'XXXXXX') {
+      await fetchBackendAPI('/api/keys/update', 'POST', {
+        code: userCode,
+        deviceId: deviceId,
+        updates: { fcmToken: token.value }
+      });
+    }
+  });
+
+  PushNotifications.addListener('pushNotificationReceived', (notification) => {
+    console.log('Push notification received: ', notification);
+    saveNotificationToLocal(
+      notification.title, 
+      notification.body
+    );
+  });
 };

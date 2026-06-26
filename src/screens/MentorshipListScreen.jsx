@@ -47,10 +47,53 @@ const MentorshipListScreen = () => {
 
       <div className="px-4 mt-6">
         {isLoading ? (
-          <div className="space-y-4">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="w-full h-32 rounded-3xl bg-[#111] border border-white/5 relative overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skeleton-shimmer" />
+          <div className="flex flex-col md:grid md:grid-cols-2 lg:grid-cols-3 gap-6 animate-pulse">
+            {Array.from({ length: 6 }).map((_, idx) => (
+              <div key={idx} className="bg-[#111]/80 border border-white/5 rounded-3xl p-5 flex flex-col relative overflow-hidden h-60">
+                <div className="flex gap-4">
+                  {/* Photo Skeleton */}
+                  <div className="w-20 h-20 rounded-2xl bg-white/5 relative overflow-hidden flex-shrink-0">
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skeleton-shimmer" />
+                  </div>
+                  {/* Info Skeleton */}
+                  <div className="flex-1 space-y-2.5">
+                    <div className="w-3/4 h-5 bg-white/10 rounded relative overflow-hidden">
+                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skeleton-shimmer" />
+                    </div>
+                    <div className="w-full h-4 bg-white/5 rounded relative overflow-hidden">
+                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skeleton-shimmer" />
+                    </div>
+                    <div className="flex items-center gap-2 mt-2">
+                      <div className="w-16 h-5 bg-white/5 rounded-lg relative overflow-hidden">
+                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skeleton-shimmer" />
+                      </div>
+                      <div className="w-12 h-5 bg-white/5 rounded-lg relative overflow-hidden">
+                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skeleton-shimmer" />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                {/* Tags Skeleton */}
+                <div className="flex gap-2 mt-4 overflow-hidden">
+                  <div className="w-16 h-6 bg-white/5 rounded-xl relative overflow-hidden">
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skeleton-shimmer" />
+                  </div>
+                  <div className="w-20 h-6 bg-white/5 rounded-xl relative overflow-hidden">
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skeleton-shimmer" />
+                  </div>
+                  <div className="w-14 h-6 bg-white/5 rounded-xl relative overflow-hidden">
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skeleton-shimmer" />
+                  </div>
+                </div>
+                {/* Book indicator Skeleton */}
+                <div className="mt-auto pt-4 border-t border-white/5 flex items-center justify-between">
+                  <div className="w-24 h-4 bg-white/5 rounded relative overflow-hidden">
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skeleton-shimmer" />
+                  </div>
+                  <div className="w-8 h-8 rounded-full bg-white/5 relative overflow-hidden">
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skeleton-shimmer" />
+                  </div>
+                </div>
               </div>
             ))}
           </div>

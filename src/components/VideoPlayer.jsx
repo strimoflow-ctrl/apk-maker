@@ -85,24 +85,7 @@ const VideoPlayer = ({ videoUrl, title, courseId, lectureId, courseTitle, onVide
     return () => clearInterval(studyInterval);
   }, [isPlaying, isBuffering, courseTitle, title]);
 
-  useEffect(() => {
-    if (window.Android && videoUrl) {
-      try {
-        const cleanUrl = getCleanVideoUrl(videoUrl);
-        window.Android.playVideo(
-          cleanUrl,
-          title || '',
-          courseId || '',
-          lectureId || '',
-          courseTitle || '',
-          type || '',
-          coachingContext ? JSON.stringify(coachingContext) : null
-        );
-      } catch (e) {
-        console.error("Failed to play video natively", e);
-      }
-    }
-  }, [videoUrl, title, courseId, lectureId, courseTitle, type, coachingContext]);
+  // Native Video Player intercept removed as per request to use React player
 
   // Center animation state
   const [rippleEffect, setRippleEffect] = useState(null); // { side: 'left' | 'right', id: number }
@@ -234,7 +217,12 @@ const VideoPlayer = ({ videoUrl, title, courseId, lectureId, courseTitle, onVide
     if (videoRef.current && courseId && lectureId && videoRef.current.dataset.timeSet !== 'true') {
       const savedTime = localStorage.getItem(`naino_progress_${courseId}_${lectureId}`);
       if (savedTime && parseFloat(savedTime) > 0) {
-        videoRef.current.currentTime = parseFloat(savedTime);
+        const timeToSet = parseFloat(savedTime);
+        if (videoRef.current.duration && timeToSet >= videoRef.current.duration - 2) {
+          videoRef.current.currentTime = 0;
+        } else {
+          videoRef.current.currentTime = timeToSet;
+        }
       }
       videoRef.current.dataset.timeSet = 'true';
     }
@@ -316,35 +304,6 @@ const VideoPlayer = ({ videoUrl, title, courseId, lectureId, courseTitle, onVide
   };
 
   const shouldOpenUpward = isFullscreen || isLandscape;
-
-  if (window.Android) {
-    return (
-      <div className="w-full h-full bg-black flex flex-col items-center justify-center text-center p-4">
-        <p className="text-sm text-gray-400 mb-2">Playing natively on device...</p>
-        <button 
-          onClick={() => {
-            try {
-              const cleanUrl = getCleanVideoUrl(videoUrl);
-              window.Android.playVideo(
-                cleanUrl,
-                title || '',
-                courseId || '',
-                lectureId || '',
-                courseTitle || '',
-                type || '',
-                coachingContext ? JSON.stringify(coachingContext) : null
-              );
-            } catch (e) {
-              console.error("Failed to play video natively", e);
-            }
-          }}
-          className="px-4 py-1.5 bg-[#FFD700] text-black font-bold text-xs rounded-full uppercase tracking-wider pointer-events-auto"
-        >
-          Re-open Player
-        </button>
-      </div>
-    );
-  }
 
   const youtubeId = getYouTubeId(videoUrl);
 

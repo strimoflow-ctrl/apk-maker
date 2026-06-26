@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Check } from 'lucide-react';
 
-const AvatarCropper = ({ imageSrc, onComplete, onCancel }) => {
+const AvatarCropper = ({ imageSrc, onComplete, onCancel, isUploading }) => {
   const canvasRef = useRef(null);
   const imageRef = useRef(null);
 
@@ -188,9 +188,19 @@ const AvatarCropper = ({ imageSrc, onComplete, onCancel }) => {
 
       <button
         onClick={handleSave}
-        className="mt-10 w-full max-w-sm flex items-center justify-center gap-2 bg-[#FFD700] text-black font-bold py-3 rounded-xl hover:bg-[#FFC000] hover:scale-[1.02] transition-all shadow-[0_5px_15px_rgba(255,215,0,0.3)]"
+        disabled={isUploading}
+        className="mt-10 w-full max-w-sm flex items-center justify-center gap-2 bg-[#FFD700] text-black font-bold py-3.5 rounded-xl hover:bg-[#FFC000] hover:scale-[1.02] transition-all shadow-[0_5px_15px_rgba(255,215,0,0.3)] disabled:opacity-50 disabled:pointer-events-none cursor-pointer text-sm tracking-wide"
       >
-        <Check size={20} /> SET PROFILE PICTURE
+        {isUploading ? (
+          <>
+            <div className="w-4 h-4 border-2 border-black/20 border-t-black rounded-full animate-spin shrink-0"></div>
+            SAVING PROFILE PICTURE...
+          </>
+        ) : (
+          <>
+            <Check size={18} /> SET PROFILE PICTURE
+          </>
+        )}
       </button>
     </div>,
     document.body

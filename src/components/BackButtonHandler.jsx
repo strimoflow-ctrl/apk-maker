@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-
+import { App as CapacitorApp } from '@capacitor/app';
+import NativeBridge from '../utils/NativeBridge';
 
 /**
  * BackButtonHandler
@@ -36,9 +37,21 @@ const BackButtonHandler = () => {
     }
   }, [location.pathname]);
 
-  // 1. Native Capacitor Back Button Interception (REMOVED)
-  // Kotlin WebViewScreen handles hardware back button by calling webView.goBack().
-  // This triggers the popstate event below natively!
+  // 1. Native Capacitor Back Button Interception
+  useEffect(() => {
+    if (NativeBridge.isNative() || (typeof window !== 'undefined' && window.Capacitor)) {
+      const listener = CapacitorApp.addListener('backButton', ({ canGoBack }) => {
+        if (!canGoBack || lastPathRef.current === '/') {
+          setShowExitModal(true);
+        } else {
+          navigate(-1);
+        }
+      });
+      return () => {
+        listener.then(l => l.remove()).catch(e => console.warn(e));
+      };
+    }
+  }, [navigate]);
 
   // 2. Web Browser Back Button Interception (Active on ALL platforms including native WebView)
   useEffect(() => {
@@ -75,6 +88,10 @@ const BackButtonHandler = () => {
   }, [navigate]);
 
   const handleExit = () => {
+    try {
+      CapacitorApp.exitApp();
+    } catch (e) {}
+
     if (typeof window !== 'undefined' && window.Android && window.Android.exitApp) {
       window.Android.exitApp();
     } else {

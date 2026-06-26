@@ -122,7 +122,7 @@ const Header = () => {
   }, [completedDownloads.length]);
 
   return (
-    <nav className="sticky top-0 z-50 bg-black/95 backdrop-blur-md border-b border-gray-800 shadow-2xl">
+    <nav className="sticky top-0 z-50 bg-black/95 backdrop-blur-md border-b border-gray-800 shadow-2xl pt-[var(--safe-area-top)]">
       <div className="max-w-7xl mx-auto flex justify-between items-center p-4">
         {/* Logo & Title & Back Button */}
         <div className="flex items-center gap-3">

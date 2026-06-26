@@ -3,7 +3,7 @@
 
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>Naino Academy</title>
   <script>
     if (window.Android) {
@@ -16,6 +16,9 @@
       } catch(e) {
         console.error("Failed to sync credentials from Android interface:", e);
       }
+      document.documentElement.style.setProperty('--safe-area-top', '40px');
+    } else {
+      document.documentElement.style.setProperty('--safe-area-top', 'env(safe-area-inset-top, 0px)');
     }
   </script>
   <style>

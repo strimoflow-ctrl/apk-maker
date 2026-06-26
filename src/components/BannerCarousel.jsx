@@ -7,12 +7,9 @@ const BannerCarousel = () => {
   
   const getCachedBanner = () => {
     try {
-      const cached = sessionStorage.getItem('cache_hero_banner');
+      const cached = localStorage.getItem('naino_cache_hero_banner');
       if (cached) {
-        const parsedItem = JSON.parse(cached);
-        if (new Date().getTime() - parsedItem.timestamp < 48 * 60 * 60 * 1000) {
-          return parsedItem.data;
-        }
+        return JSON.parse(cached);
       }
     } catch (e) {}
     return null;
@@ -31,6 +28,7 @@ const BannerCarousel = () => {
         const data = await fetchWithCache('/api/banner.json', 'cache_hero_banner');
         if (data && data.banners) {
           setBannersData(data);
+          localStorage.setItem('naino_cache_hero_banner', JSON.stringify(data));
         }
       } catch (err) {
         console.error("Failed to fetch banners:", err);

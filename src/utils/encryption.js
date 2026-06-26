@@ -49,8 +49,14 @@ export const decryptData = (text) => {
 export const decryptString = (text) => {
   if (!text) return text;
   
-  // If it starts with 'http' or '/', it's already a plain URL, don't try to decrypt
-  if (text.startsWith('http://') || text.startsWith('https://') || text.startsWith('/dl/')) {
+  // If it starts with 'http', '/', 'file://', or 'content://', it's already a plain path/URL, don't try to decrypt
+  if (
+    text.startsWith('http://') || 
+    text.startsWith('https://') || 
+    text.startsWith('/dl/') || 
+    text.startsWith('file://') || 
+    text.startsWith('content://')
+  ) {
     return text;
   }
 

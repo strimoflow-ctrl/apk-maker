@@ -57,8 +57,47 @@ const CrashCourseListScreen = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#050505]">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#FFD700]"></div>
+      <div className="min-h-screen bg-[#050505] p-6 md:p-12 pb-12 text-white">
+        <div className="max-w-7xl mx-auto">
+          {/* Header Skeleton */}
+          <header className="mb-8 animate-pulse">
+            <div className="w-48 h-8 bg-white/10 rounded relative overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skeleton-shimmer" />
+            </div>
+            <div className="w-64 h-3.5 bg-white/5 rounded relative overflow-hidden mt-2">
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skeleton-shimmer" />
+            </div>
+          </header>
+
+          {/* Grid Skeleton */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 animate-pulse">
+            {Array.from({ length: 8 }).map((_, idx) => (
+              <div 
+                key={idx}
+                className="bg-[#121212] rounded-xl overflow-hidden flex flex-col h-full border border-[#222] min-h-[220px] relative"
+              >
+                <div className="relative aspect-video w-full overflow-hidden bg-white/5">
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skeleton-shimmer" />
+                </div>
+                
+                <div className="p-4 flex flex-col flex-grow justify-between gap-4">
+                  <div className="space-y-1.5">
+                    <div className="w-full h-4 bg-white/10 rounded relative overflow-hidden">
+                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skeleton-shimmer" />
+                    </div>
+                    <div className="w-2/3 h-4 bg-white/10 rounded relative overflow-hidden">
+                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skeleton-shimmer" />
+                    </div>
+                  </div>
+                  
+                  <div className="w-full h-10 bg-white/5 rounded-lg relative overflow-hidden">
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skeleton-shimmer" />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     );
   }
@@ -98,8 +137,10 @@ const CrashCourseListScreen = () => {
         </div>
 
         {hasMore && (
-          <div ref={observerTarget} className="mt-12 flex justify-center pb-8">
-            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-[#FFD700]"></div>
+          <div ref={observerTarget} className="mt-12 flex justify-center pb-8 w-full max-w-[180px] mx-auto animate-pulse">
+            <div className="w-full h-8 bg-white/5 rounded-full relative overflow-hidden border border-white/5">
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skeleton-shimmer" />
+            </div>
           </div>
         )}
       </div>

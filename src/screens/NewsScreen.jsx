@@ -37,6 +37,13 @@ const NewsScreen = () => {
     }
   };
 
+  const isRecentNews = (timestamp) => {
+    if (!timestamp) return false;
+    const diffMs = new Date() - new Date(timestamp);
+    const diffHours = diffMs / (1000 * 60 * 60);
+    return diffHours < 48; // News is considered "New" if under 48 hours old
+  };
+
   const formatTimeAgo = (timestamp) => {
     const seconds = Math.floor((new Date() - new Date(timestamp)) / 1000);
     
@@ -69,9 +76,39 @@ const NewsScreen = () => {
       {/* Content Area */}
       <main className="relative z-10 flex-1 overflow-y-auto no-scrollbar p-4 pb-24">
         {loading ? (
-          <div className="flex flex-col items-center justify-center h-full text-[#0A84FF]">
-            <Loader2 size={40} className="animate-spin mb-4" />
-            <p className="text-gray-400 font-medium animate-pulse">Fetching latest updates...</p>
+          <div className="space-y-6 max-w-2xl mx-auto animate-pulse">
+            <div className="w-32 h-4 bg-white/5 rounded relative overflow-hidden mb-4">
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skeleton-shimmer" />
+            </div>
+            {Array.from({ length: 3 }).map((_, idx) => (
+              <div 
+                key={idx}
+                className="bg-[#111] rounded-2xl overflow-hidden border border-white/10 shadow-[0_4px_20px_rgba(0,0,0,0.5)] h-[340px] flex flex-col relative"
+              >
+                {/* News Image Skeleton */}
+                <div className="relative aspect-[16/9] w-full bg-white/5 overflow-hidden">
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skeleton-shimmer" />
+                </div>
+
+                {/* News Content Skeleton */}
+                <div className="p-5 flex-grow flex flex-col justify-between">
+                  <div className="space-y-2">
+                    <div className="w-full h-6 bg-white/10 rounded relative overflow-hidden">
+                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skeleton-shimmer" />
+                    </div>
+                    <div className="w-3/4 h-6 bg-white/10 rounded relative overflow-hidden">
+                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skeleton-shimmer" />
+                    </div>
+                    <div className="w-5/6 h-4 bg-white/5 rounded relative overflow-hidden mt-3">
+                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skeleton-shimmer" />
+                    </div>
+                  </div>
+                  <div className="w-24 h-4 bg-white/5 rounded-full relative overflow-hidden">
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skeleton-shimmer" />
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         ) : news.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center">
@@ -105,6 +142,16 @@ const NewsScreen = () => {
                     alt={item.title}
                     className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
                   />
+                  
+                  {/* NEW Badge (Top-Left) */}
+                  {isRecentNews(item.createdAt) && (
+                    <div className="absolute top-3 left-3 z-20 flex items-center justify-center">
+                      <span className="absolute inset-0 bg-[#FF453A] rounded-full animate-ping opacity-60"></span>
+                      <span className="relative bg-gradient-to-tr from-[#FF453A] to-red-400 text-white text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full shadow-[0_0_15px_rgba(255,69,58,0.6)] border border-[#FF453A]/50">
+                        NEW
+                      </span>
+                    </div>
+                  )}
                   
                   {/* Action Link Icon Overlay (Subtle) */}
                   <div className="absolute top-3 right-3 z-20 bg-black/60 backdrop-blur-md p-2 rounded-full border border-white/20 opacity-0 group-hover:opacity-100 transition-opacity">

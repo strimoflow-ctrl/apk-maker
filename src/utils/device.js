@@ -8,7 +8,10 @@ import NativeBridge from './NativeBridge';
 export const getDeviceUuid = async () => {
   if (NativeBridge.isNative()) {
     const nativeId = NativeBridge.getDeviceId();
-    if (nativeId) return nativeId;
+    if (nativeId) {
+      localStorage.setItem('naino_device_uuid', nativeId);
+      return nativeId;
+    }
   }
 
   // Highly persistent fallback for Web/Browsers

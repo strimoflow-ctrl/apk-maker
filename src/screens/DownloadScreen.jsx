@@ -76,6 +76,8 @@ const ActiveDownloadItem = ({ downloadKey, openModal, pauseDownload, resumeDownl
   const dl = useDownloadProgress(downloadKey);
   if (!dl || !dl.title) return null;
 
+  const isQueued = dl.status === 'queued';
+
   return (
     <div className="bg-black p-4 rounded-xl border border-white/5 relative group">
       <div className="flex justify-between items-center mb-2">
@@ -90,7 +92,7 @@ const ActiveDownloadItem = ({ downloadKey, openModal, pauseDownload, resumeDownl
           )}
         </div>
         <span className="text-xs text-[#FFD700] font-mono whitespace-nowrap ml-2">
-          {dl.status === 'paused' ? 'PAUSED' : `${Math.round(dl.progress || 0)}%`}
+          {isQueued ? 'QUEUED' : dl.status === 'paused' ? 'PAUSED' : `${Math.round(dl.progress || 0)}%`}
         </span>
       </div>
       
@@ -98,25 +100,27 @@ const ActiveDownloadItem = ({ downloadKey, openModal, pauseDownload, resumeDownl
         <div className="flex-1 bg-white/10 h-1.5 rounded-full overflow-hidden">
           <div 
             className="bg-[#FFD700] h-full transition-all duration-300"
-            style={{ width: `${dl.progress || 0}%` }}
+            style={{ width: `${isQueued ? 0 : (dl.progress || 0)}%` }}
           ></div>
         </div>
-        {dl.status === 'paused' ? (
-          <button 
-            onClick={() => resumeDownload(dl.type, dl.courseId, dl.itemId)}
-            className="text-gray-500 hover:text-[#00E600] transition-colors p-1"
-            title="Resume Download"
-          >
-            <Play size={16} />
-          </button>
-        ) : (
-          <button 
-            onClick={() => pauseDownload(dl.type, dl.courseId, dl.itemId)}
-            className="text-gray-500 hover:text-yellow-500 transition-colors p-1"
-            title="Pause Download"
-          >
-            <Pause size={16} />
-          </button>
+        {!isCapacitor && !isQueued && (
+          dl.status === 'paused' ? (
+            <button 
+              onClick={() => resumeDownload(dl.type, dl.courseId, dl.itemId)}
+              className="text-gray-500 hover:text-[#00E600] transition-colors p-1"
+              title="Resume Download"
+            >
+              <Play size={16} />
+            </button>
+          ) : (
+            <button 
+              onClick={() => pauseDownload(dl.type, dl.courseId, dl.itemId)}
+              className="text-gray-500 hover:text-yellow-500 transition-colors p-1"
+              title="Pause Download"
+            >
+              <Pause size={16} />
+            </button>
+          )
         )}
         <button 
           onClick={() => openModal('cancel', dl)}
@@ -127,13 +131,15 @@ const ActiveDownloadItem = ({ downloadKey, openModal, pauseDownload, resumeDownl
         </button>
       </div>
 
-      <p className="text-[10px] text-gray-400 mt-2 text-right">
-        {(dl.loaded / (1024 * 1024)).toFixed(2)} MB 
-        {dl.isHLS 
-          ? ` (Seg ${dl.currentSegment || 0}/${dl.totalSegments || 0})`
-          : ` / ${dl.total ? (dl.total / (1024 * 1024)).toFixed(2) + ' MB' : 'Unknown'}`
-        }
-      </p>
+      {!isQueued && (
+        <p className="text-[10px] text-gray-400 mt-2 text-right">
+          {(dl.loaded / (1024 * 1024)).toFixed(2)} MB 
+          {dl.isHLS 
+            ? ` (Seg ${dl.currentSegment || 0}/${dl.totalSegments || 0})`
+            : ` / ${dl.total ? (dl.total / (1024 * 1024)).toFixed(2) + ' MB' : 'Unknown'}`
+          }
+        </p>
+      )}
     </div>
   );
 };
@@ -242,15 +248,16 @@ const DownloadScreen = () => {
 
     const url = await getOfflineFileUrl(dl.type, dl.courseId, dl.itemId);
     if (action === 'watch') {
-      if (url && url.startsWith('blob:')) URL.revokeObjectURL(url);
-      const cType = dl.courseType || (dl.courseId?.startsWith('cr_') ? 'crash' : dl.courseId?.startsWith('c_') ? 'coaching' : 'course');
       const state = { 
         autoPlayLecture: dl.itemId,
+        type: dl.type,
+        title: dl.title,
+        courseTitle: dl.courseTitle,
         coachingContext: dl.chapterName ? { chapterName: dl.chapterName } : null
       };
-      if (cType === 'coaching') navigate(`/coaching/${dl.courseId}`, { state });
-      else if (cType === 'crash') navigate(`/crash/${dl.courseId}`, { state });
-      else navigate(`/course/${dl.courseId}`, { state });
+      
+      // Always use the offline player for downloaded videos to ensure offline playback works flawlessly
+      navigate(`/offline-player/${dl.courseId}`, { state });
     } else if (action === 'view') {
       navigate('/pdf', { state: { file: url, title: dl.title } });
     } else if (action === 'extract') {

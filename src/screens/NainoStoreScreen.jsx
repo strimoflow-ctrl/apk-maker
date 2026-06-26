@@ -66,10 +66,40 @@ const NainoStoreScreen = () => {
 
       <div className="px-4 mt-6">
         {isLoading ? (
-          <div className="space-y-6">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="w-full h-48 rounded-3xl bg-[#111] border border-white/5 relative overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skeleton-shimmer" />
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-6 animate-pulse">
+            {Array.from({ length: 8 }).map((_, idx) => (
+              <div
+                key={idx}
+                className="bg-[#111] border border-white/5 rounded-xl md:rounded-[1.5rem] flex flex-col relative overflow-hidden h-64 md:h-[420px]"
+              >
+                {/* Image Section Skeleton */}
+                <div className="w-full h-32 md:h-56 bg-white/5 relative overflow-hidden">
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skeleton-shimmer" />
+                </div>
+
+                {/* Content Section Skeleton */}
+                <div className="p-2.5 md:p-4 flex flex-col flex-grow justify-between gap-4">
+                  <div className="space-y-2">
+                    <div className="w-full h-4 bg-white/10 rounded relative overflow-hidden">
+                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skeleton-shimmer" />
+                    </div>
+                    <div className="w-2/3 h-4 bg-white/10 rounded relative overflow-hidden">
+                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skeleton-shimmer" />
+                    </div>
+                    <div className="w-1/3 h-3.5 bg-white/5 rounded relative overflow-hidden mt-2">
+                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skeleton-shimmer" />
+                    </div>
+                  </div>
+
+                  <div className="space-y-3 mt-auto">
+                    <div className="w-2/3 h-6 bg-white/10 rounded relative overflow-hidden">
+                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skeleton-shimmer" />
+                    </div>
+                    <div className="w-full h-8 md:h-11 bg-white/5 rounded-lg md:rounded-xl relative overflow-hidden">
+                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skeleton-shimmer" />
+                    </div>
+                  </div>
+                </div>
               </div>
             ))}
           </div>

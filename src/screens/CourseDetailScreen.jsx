@@ -1,15 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Virtuoso } from 'react-virtuoso';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Home, PlayCircle, FileText, Download, CheckCircle, Loader2 } from 'lucide-react';
+import { ArrowLeft, Home, PlayCircle, FileText, Download, CheckCircle, Loader2, X } from 'lucide-react';
 import { fetchWithCache } from '../utils/api';
 import VideoPlayer from '../components/VideoPlayer';
-import { useDownload, useDownloadProgress } from '../context/DownloadContext';
-
-const DownloadProgressText = ({ downloadKey }) => {
-  const progressData = useDownloadProgress(downloadKey);
-  return <>{Math.round(progressData?.progress || 0)}%</>;
-};
+import { useDownload, useDownloadProgress, DownloadProgressText } from '../context/DownloadContext';
 import SaveButton from '../components/SaveButton';
 
 const CourseDetailScreen = () => {
@@ -40,7 +35,7 @@ const CourseDetailScreen = () => {
   const hasAutoResumed = useRef(false);
   const virtuosoRef = useRef(null);
 
-  const { downloadFile, isDownloaded, isDownloading, getOfflineFileUrl } = useDownload();
+  const { downloadFile, isDownloaded, isDownloading, getOfflineFileUrl, cancelDownload } = useDownload();
 
   // Auto-scroll to active lecture
   useEffect(() => {
@@ -106,7 +101,13 @@ const CourseDetailScreen = () => {
         for (const subject of courseData.subjects || []) {
           const chapter = (subject.chapters || []).find(c => c.chapter === ctx.chapterName || c.name === ctx.chapterName);
           if (chapter) {
-            const lIndex = (chapter.lectures || []).findIndex(l => l.name === lectureId);
+            const lIndex = (chapter.lectures || []).findIndex(l => {
+              const sName = subject?.name || "";
+              const cName = chapter.chapter || chapter.name || "";
+              const uId = [sName, cName, l.name].filter(Boolean).map(s => s.replace(/[^a-zA-Z0-9]/g, '_')).join('_');
+              const oldUId = cName ? `${cName.replace(/[^a-zA-Z0-9]/g, '_')}_${l.name}` : l.name;
+              return uId === lectureId || oldUId === lectureId || l.name === lectureId;
+            });
             if (lIndex !== -1) {
               setSelectedChapter(chapter);
               setActiveLecture(chapter.lectures[lIndex]);
@@ -130,7 +131,13 @@ const CourseDetailScreen = () => {
       // Case 2: Flat fallback search
       for (const subject of courseData.subjects || []) {
         for (const chapter of subject.chapters || []) {
-          const lIndex = (chapter.lectures || []).findIndex(l => l.name === lectureId);
+          const lIndex = (chapter.lectures || []).findIndex(l => {
+            const sName = subject?.name || "";
+            const cName = chapter.chapter || chapter.name || "";
+            const uId = [sName, cName, l.name].filter(Boolean).map(s => s.replace(/[^a-zA-Z0-9]/g, '_')).join('_');
+            const oldUId = cName ? `${cName.replace(/[^a-zA-Z0-9]/g, '_')}_${l.name}` : l.name;
+            return uId === lectureId || oldUId === lectureId || l.name === lectureId;
+          });
           if (lIndex !== -1) {
             setSelectedChapter(chapter);
             setActiveLecture(chapter.lectures[lIndex]);
@@ -220,12 +227,19 @@ const CourseDetailScreen = () => {
   // View: Chapter List (Image 2)
   if (!selectedChapter) {
     return (
-      <div className="min-h-screen bg-[#050505] text-white p-4 md:p-6 pb-12 page-transition">
+      <div className="flex-1 w-full overflow-y-auto bg-[#050505] text-white p-4 md:p-6 pb-12 page-transition pt-[calc(var(--safe-area-top)+1rem)]">
         <header className="mb-6 flex items-start justify-between gap-4">
           <div className="flex-1 min-w-0">
             <h1 className="text-[#FFD700] font-oswald text-2xl font-bold uppercase tracking-wide truncate">
               {course ? course.title : 'Loading...'}
             </h1>
+            {course?.category && (
+              <div className="mt-1.5">
+                <span className="inline-block px-3 py-1 rounded-lg bg-[#FFD700]/10 border border-[#FFD700]/30 text-[#FFD700] text-xs font-bold tracking-wider uppercase">
+                  🏷️ {course.category}
+                </span>
+              </div>
+            )}
           </div>
           {course && (
             <div className="shrink-0">
@@ -244,8 +258,25 @@ const CourseDetailScreen = () => {
         </header>
 
         {loading ? (
-          <div className="flex justify-center p-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#FFD700]"></div>
+          <div className="max-w-3xl mx-auto space-y-4 animate-pulse">
+            {Array.from({ length: 6 }).map((_, idx) => (
+              <div
+                key={idx}
+                className="bg-[#111] border border-white/5 rounded-xl p-4 flex items-center justify-between min-h-[75px] relative overflow-hidden"
+              >
+                <div className="space-y-2 flex-1">
+                  <div className="w-1/3 h-4 bg-white/10 rounded relative overflow-hidden">
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skeleton-shimmer" />
+                  </div>
+                  <div className="w-16 h-2.5 bg-white/5 rounded relative overflow-hidden">
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skeleton-shimmer" />
+                  </div>
+                </div>
+                <div className="w-9 h-9 rounded-full bg-white/5 border border-white/10 relative overflow-hidden shrink-0">
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skeleton-shimmer" />
+                </div>
+              </div>
+            ))}
           </div>
         ) : error ? (
           <div className="text-red-500 text-center">{error}</div>
@@ -331,9 +362,9 @@ const CourseDetailScreen = () => {
 
   // View: Lecture List & Video Player (Image 3)
   return (
-    <div className="h-[100dvh] bg-[#111] text-white flex flex-col overflow-hidden page-transition">
+    <div className="flex-1 w-full bg-[#111] text-white flex flex-col overflow-hidden page-transition">
       {/* Top Header */}
-      <header className="bg-black p-4 flex items-center justify-between">
+      <header className="bg-black p-4 flex items-center justify-between pt-[calc(var(--safe-area-top)+1rem)]">
         <button
           onClick={() => navigate(-1)}
           className="flex items-center gap-2 text-sm font-semibold hover:text-[#FFD700] transition-colors uppercase"
@@ -403,6 +434,12 @@ const CourseDetailScreen = () => {
               initialTopMostItemIndex={activeLectureIndex > 0 ? activeLectureIndex : 0}
               itemContent={(idx, lecture) => {
                 const isPlaying = activeLecture === lecture;
+                const subjectName = courseData?.subjects?.[0]?.name || "";
+                const chapterName = selectedChapter.chapter || selectedChapter.name || "";
+                const uniqueLectureId = [subjectName, chapterName, lecture.name]
+                  .filter(Boolean)
+                  .map(s => s.replace(/[^a-zA-Z0-9]/g, '_'))
+                  .join('_');
 
                 return (
                   <div
@@ -416,11 +453,11 @@ const CourseDetailScreen = () => {
                     </span>
                     <SaveButton 
                       item={{ 
-                        id: `course_video_${courseId}_${lecture.name}`, 
+                        id: `course_video_${courseId}_${uniqueLectureId}`, 
                         type: 'course', 
                         courseId: courseId, 
                         courseTitle: course?.title, 
-                        lectureId: lecture.name, 
+                        lectureId: uniqueLectureId, 
                         lectureTitle: lecture.name,
                         coachingContext: {
                           chapterName: selectedChapter?.chapter || selectedChapter?.name
@@ -437,7 +474,7 @@ const CourseDetailScreen = () => {
                       setActiveLectureIndex(idx);
                       localStorage.setItem(`naino_last_lecture_${courseId}`, lecture.name);
                       // Check offline
-                      const offlineUrl = await getOfflineFileUrl('video', courseId, lecture.name);
+                      const offlineUrl = await getOfflineFileUrl('video', courseId, uniqueLectureId);
                       setOfflineVideoUrl(offlineUrl);
                     }}
                     className={`shrink-0 px-4 py-1.5 rounded text-xs font-bold transition-colors ${isPlaying
@@ -449,18 +486,27 @@ const CourseDetailScreen = () => {
                   </button>
 
                   {/* Video Download Button */}
-                  {isDownloaded('video', courseId, lecture.name) ? (
+                  {isDownloaded('video', courseId, uniqueLectureId) ? (
                     <button disabled className="shrink-0 px-3 py-1.5 rounded text-xs font-bold border border-green-500 text-green-500 flex items-center gap-1 opacity-70">
                       <CheckCircle size={14} /> SAVED
                     </button>
-                  ) : isDownloading('video', courseId, lecture.name) ? (
-                    <button disabled className="shrink-0 px-3 py-1.5 rounded text-xs font-bold border border-[#FFD700] text-[#FFD700] flex items-center gap-1">
-                      <Loader2 size={14} className="animate-spin" /> 
-                      <DownloadProgressText downloadKey={`naino_offline_video_${courseId}_${lecture.name}`} />
-                    </button>
+                  ) : isDownloading('video', courseId, uniqueLectureId) ? (
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button disabled className="shrink-0 px-3 py-1.5 rounded text-xs font-bold border border-[#FFD700] text-[#FFD700] flex items-center gap-1">
+                        <Loader2 size={14} className="animate-spin" /> 
+                        <DownloadProgressText downloadKey={`naino_offline_video_${courseId}_${uniqueLectureId}`} />
+                      </button>
+                      <button 
+                        onClick={() => cancelDownload('video', courseId, uniqueLectureId)}
+                        className="p-1.5 rounded border border-red-500/30 bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white transition-colors flex items-center justify-center shrink-0"
+                        title="Cancel Download"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
                   ) : (
                     <button 
-                      onClick={() => downloadFile('video', courseId, lecture.name, lecture.link, lecture.name, course?.title, selectedChapter?.chapter)}
+                      onClick={() => downloadFile('video', courseId, uniqueLectureId, lecture.link, lecture.name, course?.title, selectedChapter?.chapter)}
                       className="shrink-0 px-3 py-1.5 rounded text-xs font-bold border border-white/20 text-white hover:bg-white/10 transition-colors flex items-center gap-1"
                     >
                       <Download size={14} /> VIDEO
@@ -470,18 +516,27 @@ const CourseDetailScreen = () => {
                   {lecture.notes && (
                     <>
                       {/* PDF Download Button */}
-                      {isDownloaded('pdf', courseId, lecture.name) ? (
+                      {isDownloaded('pdf', courseId, uniqueLectureId) ? (
                         <button disabled className="shrink-0 px-3 py-1.5 rounded text-xs font-bold border border-green-500 text-green-500 flex items-center gap-1 opacity-70">
                           <CheckCircle size={14} /> SAVED
                         </button>
-                      ) : isDownloading('pdf', courseId, lecture.name) ? (
-                        <button disabled className="shrink-0 px-3 py-1.5 rounded text-xs font-bold border border-[#FFD700] text-[#FFD700] flex items-center gap-1">
-                          <Loader2 size={14} className="animate-spin" /> 
-                          <DownloadProgressText downloadKey={`naino_offline_pdf_${courseId}_${lecture.name}`} />
-                        </button>
+                      ) : isDownloading('pdf', courseId, uniqueLectureId) ? (
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button disabled className="shrink-0 px-3 py-1.5 rounded text-xs font-bold border border-[#FFD700] text-[#FFD700] flex items-center gap-1">
+                            <Loader2 size={14} className="animate-spin" /> 
+                            <DownloadProgressText downloadKey={`naino_offline_pdf_${courseId}_${uniqueLectureId}`} />
+                          </button>
+                          <button 
+                            onClick={() => cancelDownload('pdf', courseId, uniqueLectureId)}
+                            className="p-1.5 rounded border border-red-500/30 bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white transition-colors flex items-center justify-center shrink-0"
+                            title="Cancel Download"
+                          >
+                            <X size={14} />
+                          </button>
+                        </div>
                       ) : (
                         <button 
-                          onClick={() => downloadFile('pdf', courseId, lecture.name, lecture.notes, `${lecture.name} Notes`, course?.title, selectedChapter?.chapter)}
+                          onClick={() => downloadFile('pdf', courseId, uniqueLectureId, lecture.notes, `${lecture.name} Notes`, course?.title, selectedChapter?.chapter)}
                           className="shrink-0 px-3 py-1.5 rounded text-xs font-bold border border-white/20 text-white hover:bg-white/10 transition-colors flex items-center gap-1"
                         >
                           <Download size={14} /> PDF
@@ -490,7 +545,7 @@ const CourseDetailScreen = () => {
 
                       <button
                         onClick={async () => {
-                          const offlinePdf = await getOfflineFileUrl('pdf', courseId, lecture.name);
+                          const offlinePdf = await getOfflineFileUrl('pdf', courseId, uniqueLectureId);
                           navigate('/pdf', { 
                             state: { 
                               file: offlinePdf || lecture.notes, 

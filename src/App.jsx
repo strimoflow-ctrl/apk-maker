@@ -43,7 +43,8 @@ const MentorDetailScreen = React.lazy(() => import('./screens/MentorDetailScreen
 const NainoStoreScreen = React.lazy(() => import('./screens/NainoStoreScreen'));
 const NotificationListScreen = React.lazy(() => import('./screens/NotificationListScreen'));
 const CommunityScreen = React.lazy(() => import('./screens/CommunityScreen'));
-import { requestNotificationPermission, listenForForegroundMessages } from './utils/notifications';
+const OfflinePlayerScreen = React.lazy(() => import('./screens/OfflinePlayerScreen'));
+import { requestNotificationPermission, listenForForegroundMessages, setupPushNotificationListeners } from './utils/notifications';
 import { APP_VERSION_CODE } from './config/version';
 import AppUpdateModal from './components/AppUpdateModal';
 import PromoPopupModal from './components/PromoPopupModal';
@@ -85,16 +86,32 @@ const ROOT_SECTIONS = [
  */
 const AppShell = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const mainPaths = ['/', '/library', '/progress', '/doubt-zone', '/more'];
   const showGlobalHeader = !mainPaths.includes(location.pathname);
+
+  useEffect(() => {
+    // Check if there is a pending route from cold-start notification tap
+    if (window.Android && typeof window.Android.getPendingRoute === 'function') {
+      try {
+        const route = window.Android.getPendingRoute();
+        if (route) {
+          console.log("Cold start redirect to:", route);
+          navigate(route);
+        }
+      } catch (e) {
+        console.error("Error checking pending route:", e);
+      }
+    }
+  }, [navigate]);
 
   return (
     <>
       <ScrollToTop />
       <BackButtonHandler />
-      <div className="min-h-screen bg-[var(--color-apple-bg)] flex flex-col">
+      <div className="fixed inset-0 bg-[var(--color-apple-bg)] flex flex-col">
         {showGlobalHeader && <Header />}
-        <div className="flex-1">
+        <div className="flex-1 flex flex-col relative w-full min-h-0 overflow-y-auto overflow-x-hidden">
           <Suspense fallback={<ScreenLoader />}>
             <Routes>
               <Route path="/" element={<HomeScreen />} />
@@ -102,6 +119,7 @@ const AppShell = () => {
               <Route path="/community" element={<CommunityScreen />} />
               <Route path="/recent" element={<RecentActivityScreen />} />
               <Route path="/downloads" element={<DownloadScreen />} />
+              <Route path="/offline-player/:courseId" element={<OfflinePlayerScreen />} />
               <Route path="/news" element={<NewsScreen />} />
               <Route path="/teachers-library" element={<TeachersLibraryScreen />} />
               <Route path="/course/:courseId" element={<CourseDetailScreen />} />
@@ -203,6 +221,9 @@ const App = () => {
 
   // PWA & Notification Setup
   useEffect(() => {
+    // Setup native push notifications listeners if on Android/iOS
+    setupPushNotificationListeners();
+
     // Request notification permission and listen for foreground messages
     requestNotificationPermission();
     const unsubscribe = listenForForegroundMessages((payload) => {
@@ -520,17 +541,13 @@ const App = () => {
 
     const checkPromoPopup = async () => {
       try {
-        const docRef = doc(db, 'app_settings', 'promo_popup');
-        const docSnap = await getDoc(docRef);
-        if (docSnap.exists()) {
-          const data = docSnap.data();
-          if (data.isActive) {
-            const updatedAtStr = data.updatedAt ? data.updatedAt.toDate().getTime().toString() : '0';
-            const lastSeen = localStorage.getItem('naino_last_promo_seen');
-            if (updatedAtStr !== lastSeen) {
-              setPromoData(data);
-              setShowPromoModal(true);
-            }
+        const res = await fetchWithCache('/api/config/promo_popup.json', 'cache_promo_popup', 5 * 60 * 1000);
+        if (res && res.isActive) {
+          const updatedAtStr = res.updatedAt ? String(res.updatedAt) : '0';
+          const lastSeen = localStorage.getItem('naino_last_promo_seen');
+          if (updatedAtStr !== lastSeen) {
+            setPromoData(res);
+            setShowPromoModal(true);
           }
         }
       } catch (err) {

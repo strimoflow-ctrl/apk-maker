@@ -31,9 +31,16 @@ const CourseCard = ({ course, onClick }) => {
       </div>
       
       <div className="p-4 flex flex-col flex-grow justify-between gap-4">
-        <h3 className="text-white font-inter text-[15px] font-semibold leading-tight line-clamp-2">
-          {course.title}
-        </h3>
+        <div className="space-y-1.5">
+          {course.category && (
+            <span className="inline-block px-2 py-0.5 rounded-md bg-[#FFD700]/10 border border-[#FFD700]/30 text-[#FFD700] text-[10px] font-bold tracking-wider uppercase">
+              🏷️ {course.category}
+            </span>
+          )}
+          <h3 className="text-white font-inter text-[15px] font-semibold leading-tight line-clamp-2">
+            {course.title}
+          </h3>
+        </div>
         
         <button className={`w-full ${isLocked ? 'bg-[#1a1a1a] hover:bg-[#222] text-[#FFD700] border border-[#FFD700]/30' : 'bg-[#FFD700] hover:bg-[#e6c200] text-black'} font-bold py-2.5 rounded-lg flex items-center justify-center gap-2 transition-colors text-sm`}>
           {isLocked ? (

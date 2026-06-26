@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Target, FileText, CheckCircle2, Search, PlayCircle, DownloadCloud, Loader2 } from 'lucide-react';
+import { Target, FileText, CheckCircle2, Search, PlayCircle, DownloadCloud, Loader2, X } from 'lucide-react';
 import { useDownload, useDownloadProgress } from '../context/DownloadContext';
 
 const TestZoneItem = ({ test, courseId, type, isDownloaded, isDownloading, handleTestClick }) => {
@@ -10,8 +10,10 @@ const TestZoneItem = ({ test, courseId, type, isDownloaded, isDownloading, handl
   const isItemDownloading = isDownloading(type, courseId, itemId);
   const isPdf = test.type === 'file' || test.link.toLowerCase().endsWith('.pdf') || test.link.includes('filestreambot');
   
+  const { cancelDownload } = useDownload();
   const progressData = useDownloadProgress(downloadKey);
   const progress = progressData?.progress || 0;
+  const isQueued = progressData?.status === 'queued';
 
   return (
     <div 
@@ -19,7 +21,7 @@ const TestZoneItem = ({ test, courseId, type, isDownloaded, isDownloading, handl
       className="group bg-[#0a0a0a] border border-white/5 hover:border-[#FFD700]/30 rounded-xl p-4 flex items-center justify-between cursor-pointer transition-all relative overflow-hidden"
     >
       {/* Background Progress Bar */}
-      {isItemDownloading && (
+      {isItemDownloading && !isQueued && (
          <div 
            className="absolute top-0 left-0 bottom-0 bg-[#FFD700]/10 transition-all duration-300"
            style={{ width: `${progress}%` }}
@@ -35,15 +37,22 @@ const TestZoneItem = ({ test, courseId, type, isDownloaded, isDownloading, handl
             {test.title}
           </h4>
           <p className="text-xs text-gray-500 uppercase tracking-wider font-bold mt-1">
-            {isItemDownloading ? `Downloading: ${Math.round(progress)}%` : isItemDownloaded ? 'Downloaded • Ready to View' : isPdf ? 'PDF / Solution' : 'Interactive HTML Test'}
+            {isItemDownloading ? (isQueued ? 'Queued' : `Downloading: ${Math.round(progress)}%`) : isItemDownloaded ? 'Downloaded • Ready to View' : isPdf ? 'PDF / Solution' : 'Interactive HTML Test'}
           </p>
         </div>
       </div>
       <div className="shrink-0 ml-4 relative z-10">
         {isItemDownloading ? (
-          <div className="flex items-center justify-center w-8 h-8 rounded-full bg-[#FFD700]/20 text-[#FFD700]">
-             <Loader2 size={16} className="animate-spin" />
-          </div>
+          <button 
+            onClick={(e) => {
+              e.stopPropagation();
+              cancelDownload(type, courseId, itemId);
+            }}
+            className="flex items-center justify-center w-8 h-8 rounded-full bg-red-500/20 text-red-500 hover:bg-red-500 hover:text-white transition-colors"
+            title="Cancel Download"
+          >
+             <X size={16} />
+          </button>
         ) : isItemDownloaded ? (
           <div className="flex items-center justify-center w-8 h-8 rounded-full bg-green-500/20 text-green-500">
              <CheckCircle2 size={18} />
@@ -153,8 +162,66 @@ const TestZoneDetailScreen = () => {
 
   if (loading) {
     return (
-      <div className="w-full min-h-screen flex items-center justify-center bg-[#050505]">
-        <div className="w-12 h-12 border-4 border-[#FFD700] border-t-transparent rounded-full animate-spin" />
+      <div className="min-h-screen bg-[#050505] text-white flex flex-col">
+        {/* Header Skeleton */}
+        <header className="border-b border-white/5 px-6 py-4 animate-pulse">
+          <div className="max-w-7xl mx-auto">
+            <div className="w-48 h-6 bg-white/10 rounded relative overflow-hidden mb-1">
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skeleton-shimmer" />
+            </div>
+            <div className="w-32 h-3 bg-white/5 rounded relative overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skeleton-shimmer" />
+            </div>
+          </div>
+        </header>
+
+        <div className="w-full max-w-7xl mx-auto flex flex-col md:flex-row gap-6 p-6 flex-1 animate-pulse">
+          {/* Sidebar Skeleton */}
+          <div className="w-full md:w-80 flex-shrink-0 flex flex-col gap-2">
+            <div className="w-24 h-4 bg-white/5 rounded relative overflow-hidden mb-2">
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skeleton-shimmer" />
+            </div>
+            <div className="flex flex-row md:flex-col overflow-x-auto gap-2">
+              {Array.from({ length: 4 }).map((_, idx) => (
+                <div key={idx} className="w-32 md:w-full h-11 bg-white/5 rounded-xl border border-transparent relative overflow-hidden flex-shrink-0">
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skeleton-shimmer" />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Main Content Skeleton */}
+          <div className="flex-1 flex flex-col min-w-0">
+            {/* Search Input Skeleton */}
+            <div className="w-full h-12 bg-white/5 rounded-xl mb-6 relative overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skeleton-shimmer" />
+            </div>
+
+            {/* Test Items Skeleton */}
+            <div className="grid grid-cols-1 gap-3">
+              {Array.from({ length: 5 }).map((_, idx) => (
+                <div key={idx} className="bg-[#0a0a0a] border border-white/5 rounded-xl p-4 flex items-center justify-between h-[66px] relative overflow-hidden">
+                  <div className="flex items-center gap-4 w-2/3">
+                    <div className="w-10 h-10 rounded-full bg-white/5 relative overflow-hidden shrink-0">
+                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skeleton-shimmer" />
+                    </div>
+                    <div className="space-y-2 w-full">
+                      <div className="w-3/4 h-4 bg-white/10 rounded relative overflow-hidden">
+                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skeleton-shimmer" />
+                      </div>
+                      <div className="w-1/2 h-3 bg-white/5 rounded relative overflow-hidden">
+                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skeleton-shimmer" />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="w-8 h-8 rounded-full bg-white/5 relative overflow-hidden shrink-0">
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skeleton-shimmer" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
       </div>
     );
   }

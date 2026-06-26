@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useRef } from 'r
 import { set, get, keys, del } from 'idb-keyval';
 import { useAlert } from './AlertContext';
 import NativeBridge from '../utils/NativeBridge';
+import { decryptString } from '../utils/encryption';
 
 const isCapacitor = NativeBridge.isNative();
 
@@ -134,10 +135,16 @@ export const DownloadProvider = ({ children }) => {
   const chunksRef = useRef({}); // Store active chunks in memory to save on pause
   const { showAlert } = useAlert();
   const pausedKeysRef = useRef({});
+  
+  const queueRef = useRef([]);
+  const processQueueRef = useRef();
 
   const updateActiveDownload = (key, data, isDelete = false) => {
     if (isDelete) {
       delete activeDownloadsRef.current[key];
+      if (queueRef.current) {
+        queueRef.current = queueRef.current.filter(k => k !== key);
+      }
       setActiveDownloadKeys(prev => prev.filter(k => k !== key));
       if (listenersRef.current[key]) {
         listenersRef.current[key].forEach(cb => cb(null));
@@ -192,6 +199,85 @@ export const DownloadProvider = ({ children }) => {
     }
   }, []);
 
+  const processQueue = () => {
+    const activeKeys = Object.keys(activeDownloadsRef.current);
+    const downloadingCount = activeKeys.filter(
+      key => activeDownloadsRef.current[key]?.status === 'downloading'
+    ).length;
+
+    if (downloadingCount < 2) {
+      if (queueRef.current) {
+        const nextKey = queueRef.current.find(
+          key => activeDownloadsRef.current[key]?.status === 'queued'
+        );
+
+        if (nextKey) {
+          const item = activeDownloadsRef.current[nextKey];
+          if (item) {
+            updateActiveDownload(nextKey, { status: 'downloading' });
+            startActualDownload(item);
+          }
+        }
+      }
+    }
+  };
+
+  processQueueRef.current = processQueue;
+
+  // Global listener for Native Download Progress
+  useEffect(() => {
+    if (isCapacitor) {
+      window.updateDownloadProgress = async (idKey, progress, downloaded, total, currentSegment, totalSegments) => {
+        const activeKeys = Object.keys(activeDownloadsRef.current);
+        const targetKey = activeKeys.find(k => k.endsWith(`_${idKey}`));
+        
+        if (targetKey) {
+          if (progress === 100) {
+             const state = activeDownloadsRef.current[targetKey];
+             const meta = { 
+               key: targetKey, 
+               courseId: state.courseId, 
+               itemId: state.itemId, 
+               title: state.title, 
+               type: state.type, 
+               courseType: state.courseType,
+               courseTitle: state.courseTitle,
+               chapterName: state.chapterName,
+               size: total, 
+               timestamp: Date.now() 
+             };
+             
+             try {
+               await set(targetKey, { isFilesystem: true });
+               await set(`${targetKey}_meta`, meta);
+             } catch (e) {
+               console.error("Failed to save download meta to IDB:", e);
+             }
+
+             setCompletedDownloads(prev => {
+                const filtered = prev.filter(d => d.key !== targetKey);
+                return [meta, ...filtered];
+             });
+             updateActiveDownload(targetKey, null, true);
+             if (processQueueRef.current) processQueueRef.current();
+          } else if (progress === -1) {
+             // Handle native download failure
+             const state = activeDownloadsRef.current[targetKey];
+             const title = state ? state.title : "Video";
+             showAlert(`Download failed: ${title}`, 'error');
+             updateActiveDownload(targetKey, { status: 'paused', progress: 0 });
+             if (processQueueRef.current) processQueueRef.current();
+          } else {
+             const updates = { progress, loaded: downloaded, total, status: 'downloading' };
+             if (currentSegment !== undefined) updates.currentSegment = currentSegment;
+             if (totalSegments !== undefined) updates.totalSegments = totalSegments;
+             updateActiveDownload(targetKey, updates);
+          }
+        }
+      };
+    }
+  }, [showAlert]);
+
   // Manage KeepAwake lock based on active downloads
   useEffect(() => {
     if (!isCapacitor) return;
@@ -215,6 +301,29 @@ export const DownloadProvider = ({ children }) => {
   useEffect(() => {
     const loadDownloads = async () => {
       try {
+        // 1. Sync Native Downloads (if running on mobile app)
+        if (isCapacitor) {
+          try {
+            const nativeDownloads = NativeBridge.getOfflineDownloadsList();
+            if (Array.isArray(nativeDownloads)) {
+              for (const nd of nativeDownloads) {
+                const exists = await get(nd.key);
+                if (!exists) {
+                  const ext = nd.type === 'pdf' ? '.pdf' : nd.type === 'book' ? '.zip' : '.mp4';
+                  const cleanTitle = nd.title.replace(/\s+/g, '_');
+                  const targetFileName = `${nd.type}/${cleanTitle}_${nd.type}_${nd.courseId}_${nd.itemId}${ext}`;
+                  
+                  await set(nd.key, { isFilesystem: true, fileName: targetFileName });
+                  await set(`${nd.key}_meta`, nd);
+                  console.log("Synced background download to IndexedDB:", nd.key);
+                }
+              }
+            }
+          } catch (syncErr) {
+            console.error("Failed to sync native downloads:", syncErr);
+          }
+        }
+
         const allKeys = await keys();
         const nainoKeys = allKeys.filter(k => k.startsWith('naino_offline_') && !k.endsWith('_meta') && !k.startsWith('naino_offline_partial_'));
 
@@ -278,8 +387,6 @@ export const DownloadProvider = ({ children }) => {
 
     try {
       if (isCapacitor) {
-        // On Capacitor, file data is already written to the device storage directly.
-        // We only need to save the metadata.
         const meta = {
           key: downloadKey,
           courseId,
@@ -330,10 +437,26 @@ export const DownloadProvider = ({ children }) => {
     }
   };
 
-  const downloadFile = async (type, courseId, itemId, url, title, courseTitle = '', chapterName = '', isResume = false) => {
+  const downloadFile = async (type, courseId, itemId, rawUrl, title, courseTitle = '', chapterName = '', isResume = false) => {
+    if (!rawUrl) return;
+    
+    let url = decryptString(rawUrl);
+    if (url.startsWith('/dl/')) {
+      url = `https://filestreambot-1-jx2x.onrender.com${url}`;
+    }
+    if (url.startsWith('http://') && !url.includes('localhost')) {
+      url = url.replace('http://', 'https://');
+    }
+
     const downloadKey = `naino_offline_${type}_${courseId}_${itemId}`;
-    const partialKey = `naino_offline_partial_${downloadKey}`;
-    const currentPath = window.location.hash;
+    
+    // If already downloading or queued, do nothing
+    const existing = activeDownloadsRef.current[downloadKey];
+    if (existing && (existing.status === 'downloading' || existing.status === 'queued')) {
+      return;
+    }
+
+    const currentPath = window.location.pathname + window.location.hash;
     const courseType = currentPath.includes('/coaching') ? 'coaching' :
       currentPath.includes('/crash') ? 'crash' :
         currentPath.includes('/course') ? 'course' :
@@ -341,9 +464,10 @@ export const DownloadProvider = ({ children }) => {
             currentPath.includes('/test-zone') ? 'test-zone' :
               currentPath.includes('/book-library') ? 'book-library' : 'other';
 
-    if (activeDownloadsRef.current[downloadKey] && activeDownloadsRef.current[downloadKey].status === 'downloading') return;
-    const exists = await get(downloadKey);
-    if (exists) return;
+    if (!isResume) {
+      const exists = await get(downloadKey);
+      if (exists) return;
+    }
 
     if (type === 'pdf' && itemId && courseId && ['coaching', 'crash', 'course'].includes(courseType)) {
       try {
@@ -367,6 +491,44 @@ export const DownloadProvider = ({ children }) => {
       } catch (e) {
         console.warn("Error saving recent activity on PDF download:", e);
       }
+    }
+
+    const queueItem = {
+      key: downloadKey,
+      type,
+      courseId,
+      itemId,
+      url,
+      title,
+      courseTitle,
+      chapterName,
+      courseType,
+      isResume,
+      status: 'queued',
+      progress: existing ? existing.progress : 0,
+      loaded: existing ? existing.loaded : 0,
+      total: existing ? existing.total : 0,
+      isHLS: url.includes('.m3u8'),
+      currentSegment: existing ? existing.currentSegment : 0,
+      totalSegments: existing ? existing.totalSegments : 0
+    };
+
+    updateActiveDownload(downloadKey, queueItem);
+
+    if (!queueRef.current.includes(downloadKey)) {
+      queueRef.current.push(downloadKey);
+    }
+
+    processQueue();
+  };
+
+  async function startActualDownload(item) {
+    const { key: downloadKey, type, courseId, itemId, url, title, courseTitle, chapterName, courseType, isResume } = item;
+    const partialKey = `naino_offline_partial_${downloadKey}`;
+
+    if (isCapacitor) {
+      NativeBridge.startDownload(url, title, courseId, itemId, type);
+      return;
     }
 
     const controller = new AbortController();
@@ -393,7 +555,6 @@ export const DownloadProvider = ({ children }) => {
         existingBlob = await get(partialKey);
       }
     } else {
-      // Clear any partials if starting fresh
       await del(partialKey);
       await del(`${partialKey}_meta`);
     }
@@ -434,19 +595,14 @@ export const DownloadProvider = ({ children }) => {
 
     try {
       if (url.includes('.m3u8')) {
-        // HLS Download Logic
         const res = await fetch(url, { signal: controller.signal });
         const text = await res.text();
         const lines = text.split('\n');
 
-        // Basic parser: filter empty lines and comments
         const segmentUrls = lines.filter(line => line.trim() !== '' && !line.startsWith('#'));
-
-        // Resolve base URL for relative paths
         const baseUrl = url.substring(0, url.lastIndexOf('/') + 1);
         const resolvedUrls = segmentUrls.map(segUrl => {
           if (segUrl.trim().startsWith('http')) return segUrl.trim();
-          // Handle absolute paths on the same host (simple fallback)
           if (segUrl.trim().startsWith('/')) {
             const urlObj = new URL(url);
             return urlObj.origin + segUrl.trim();
@@ -501,7 +657,6 @@ export const DownloadProvider = ({ children }) => {
             segmentsDownloaded = i + 1;
 
             const now = Date.now();
-            // Throttle state updates to at most once per second to prevent UI lag
             if (now - lastUpdateTime > 1000 || i === resolvedUrls.length - 1) {
               const currentPercent = ((i + 1) / total) * 100;
               updateActiveDownload(downloadKey, {
@@ -529,9 +684,6 @@ export const DownloadProvider = ({ children }) => {
             }
           } catch (segErr) {
             console.error(`Error downloading segment ${i}:`, segErr);
-            // Continue or fail? Let's try to continue for now, or maybe fail if it's critical.
-            // For now, let's just push an empty chunk to keep indices or fail.
-            // Failing is probably better to avoid corrupted video.
             throw segErr;
           }
         }
@@ -563,255 +715,162 @@ export const DownloadProvider = ({ children }) => {
         };
         await set(`${downloadKey}_meta`, meta);
 
-        // Cleanup partials
         await del(partialKey);
         await del(`${partialKey}_meta`);
         delete chunksRef.current[downloadKey];
 
-        setCompletedDownloads(prev => [meta, ...prev]);
+        setCompletedDownloads(prev => [meta, ...prev.filter(d => d.key !== downloadKey)]);
         await notifyComplete(notifId, title);
 
       } else {
-        // Standard Download Logic (Native background download for Capacitor)
         let proxyUrl = url;
         if (!isCapacitor) {
           if (url.includes('filestreambot-1-jx2x.onrender.com')) {
             proxyUrl = url.replace(/^https?:\/\/filestreambot-1-jx2x\.onrender\.com/, '');
           }
-        } else {
-          if (url.startsWith('/dl/')) {
-            proxyUrl = `https://filestreambot-1-jx2x.onrender.com${url}`;
-          } else if (url.startsWith('http://') && !url.includes('localhost')) {
-            proxyUrl = url.replace('http://', 'https://');
+        }
+
+        const headers = isResume && loaded > 0 ? { 'Range': `bytes=${loaded}-` } : {};
+
+        if (isCapacitor && !total) {
+          try {
+            const headRes = await CapacitorHttp.request({
+              method: 'HEAD',
+              url: proxyUrl
+            });
+            const len = headRes.headers?.['content-length'] || headRes.headers?.['Content-Length'];
+            if (len) {
+              total = parseInt(len, 10);
+            }
+          } catch (e) {
+            console.warn("Native HEAD request failed to get content length:", e);
           }
         }
 
-        if (false) { // Disabled native download to fix Pause/Cancel bug
-          // Native Capacitor Download (NO LAG, NO RAM BLOAT)
-          let progressListener = null;
-          let lastUpdateTime = 0;
+        const response = await fetch(proxyUrl, { signal: controller.signal, headers });
 
-          try {
-            // Setup listener
-            progressListener = await Filesystem.addListener('progress', (status) => {
-              if (status.url === proxyUrl || status.url === proxyUrl.split('?')[0]) {
-                const currentPercent = (status.bytes / status.contentLength) * 100;
+        if (!response.ok && response.status !== 206) throw new Error(`HTTP error! status: ${response.status}`);
 
-                const now = Date.now();
-                // Throttle React state updates to 1 per second to prevent freezing the JS thread!
-                if (now - lastUpdateTime > 1000 || currentPercent === 100) {
-                  updateActiveDownload(downloadKey, {
-                      progress: currentPercent,
-                      loaded: status.bytes,
-                      total: status.contentLength,
-                      title,
-                      type,
-                      courseTitle,
-                      chapterName,
-                      courseId,
-                      itemId,
-                      url,
-                      status: 'downloading'
-                  });
-                  lastUpdateTime = now;
-                }
+        const contentLength = response.headers.get('content-length');
+        if (!total) {
+          total = parseInt(contentLength, 10) || 0;
+        }
 
-                if (Math.floor(currentPercent) - lastPercentNotified >= 5) {
-                  lastPercentNotified = Math.floor(currentPercent);
-                  notifyProgress(notifId, title, currentPercent);
-                }
-              }
-            });
+        const reader = response.body.getReader();
+        const chunks = existingBlob ? [existingBlob] : [];
+        chunksRef.current[downloadKey] = chunks;
+        let pendingBuffer = new Uint8Array(0);
 
-            // Start native download
-            const result = await Filesystem.downloadFile({
-              url: proxyUrl,
-              path: fileName,
-              directory: Directory.Data,
-              progress: true
-            });
+        while (true) {
+          const { done, value } = await reader.read();
 
-            // Remove listener
-            if (progressListener) {
-              progressListener.remove();
-            }
+          if (done) break;
 
-            const headRes = await CapacitorHttp.request({ method: 'HEAD', url: proxyUrl });
-            const finalSize = parseInt(headRes.headers?.['content-length'] || headRes.headers?.['Content-Length'] || '0', 10);
-
-            let isZip = false;
-            if (type === 'book' || type === 'pdf') {
-              try {
-                const readRes = await Filesystem.readFile({ path: fileName, directory: Directory.Data });
-                const base64Data = readRes.data.substring(0, 50);
-                const decoded = atob(base64Data);
-                if (decoded.startsWith('PK')) isZip = true;
-              } catch (e) { }
-            }
-
-            await set(downloadKey, { isFilesystem: true, fileName: fileName });
-
-            const meta = {
-              key: downloadKey, courseId, itemId, title, type, courseType, courseTitle, chapterName, size: finalSize, timestamp: new Date().getTime(), isZip
-            };
-            await set(`${downloadKey}_meta`, meta);
-
-            await del(partialKey);
-            await del(`${partialKey}_meta`);
-            delete chunksRef.current[downloadKey];
-
-            setCompletedDownloads(prev => [meta, ...prev]);
-            await notifyComplete(notifId, title);
-
-          } catch (error) {
-            if (progressListener) progressListener.remove();
-            throw error;
-          }
-
-        } else {
-          // Fallback manual chunked download for Web or Resuming
-          const headers = isResume && loaded > 0 ? { 'Range': `bytes=${loaded}-` } : {};
-
-          if (isCapacitor && !total) {
+          if (isCapacitor && fileUri) {
             try {
-              const headRes = await CapacitorHttp.request({
-                method: 'HEAD',
-                url: proxyUrl
-              });
-              const len = headRes.headers?.['content-length'] || headRes.headers?.['Content-Length'];
-              if (len) {
-                total = parseInt(len, 10);
+              const newBuffer = new Uint8Array(pendingBuffer.length + value.length);
+              newBuffer.set(pendingBuffer, 0);
+              newBuffer.set(value, pendingBuffer.length);
+
+              const remainder = newBuffer.length % 3;
+              const bytesToEncode = newBuffer.length - remainder;
+
+              if (bytesToEncode > 0) {
+                const chunkToEncode = newBuffer.subarray(0, bytesToEncode);
+                const base64Data = arrayBufferToBase64(chunkToEncode);
+                await Filesystem.appendFile({
+                  path: fileName,
+                  data: base64Data,
+                  directory: Directory.Data
+                });
               }
-            } catch (e) {
-              console.warn("Native HEAD request failed to get content length:", e);
-            }
-          }
 
-          const response = await fetch(proxyUrl, { signal: controller.signal, headers });
-
-          if (!response.ok && response.status !== 206) throw new Error(`HTTP error! status: ${response.status}`);
-
-          const contentLength = response.headers.get('content-length');
-          if (!total) {
-            total = parseInt(contentLength, 10) || 0;
-          }
-
-          const reader = response.body.getReader();
-          const chunks = existingBlob ? [existingBlob] : [];
-          chunksRef.current[downloadKey] = chunks;
-          let pendingBuffer = new Uint8Array(0);
-
-          while (true) {
-            const { done, value } = await reader.read();
-
-            if (done) break;
-
-            if (isCapacitor && fileUri) {
-              try {
-                const newBuffer = new Uint8Array(pendingBuffer.length + value.length);
-                newBuffer.set(pendingBuffer, 0);
-                newBuffer.set(value, pendingBuffer.length);
-
-                const remainder = newBuffer.length % 3;
-                const bytesToEncode = newBuffer.length - remainder;
-
-                if (bytesToEncode > 0) {
-                  const chunkToEncode = newBuffer.subarray(0, bytesToEncode);
-                  const base64Data = arrayBufferToBase64(chunkToEncode);
-                  await Filesystem.appendFile({
-                    path: fileName,
-                    data: base64Data,
-                    directory: Directory.Data
-                  });
-                }
-
-                pendingBuffer = newBuffer.subarray(bytesToEncode);
-              } catch (fsErr) {
-                console.error("Failed to append chunk to filesystem:", fsErr);
-              }
-            } else {
-              chunks.push(value);
-            }
-            loaded += value.length;
-
-            const currentPercent = total ? (loaded / total) * 100 : 0;
-
-            updateActiveDownload(downloadKey, {
-                progress: currentPercent,
-                loaded,
-                total,
-                title,
-                type,
-                courseTitle,
-                chapterName,
-                courseId,
-                itemId,
-                url,
-                status: 'downloading'
-            });
-
-            if (Math.floor(currentPercent) - lastPercentNotified >= 5) {
-              lastPercentNotified = Math.floor(currentPercent);
-              await notifyProgress(notifId, title, currentPercent);
-            }
-          }
-
-          if (isCapacitor && fileUri && pendingBuffer.length > 0) {
-            try {
-              const base64Data = arrayBufferToBase64(pendingBuffer);
-              await Filesystem.appendFile({
-                path: fileName,
-                data: base64Data,
-                directory: Directory.Data
-              });
+              pendingBuffer = newBuffer.subarray(bytesToEncode);
             } catch (fsErr) {
-              console.error("Failed to append final chunk to filesystem:", fsErr);
-            }
-          }
-
-          let finalSize = loaded;
-          let isZip = false;
-          if (!isCapacitor) {
-            const contentType = response.headers.get('content-type') || (type === 'pdf' ? 'application/pdf' : 'video/mp4');
-            const finalBlob = new Blob(chunks, { type: contentType });
-
-            await set(downloadKey, finalBlob);
-            finalSize = finalBlob.size;
-
-            if (type === 'book' || type === 'pdf') {
-              try {
-                const magicBytes = await finalBlob.slice(0, 4).text();
-                if (magicBytes.startsWith('PK')) {
-                  isZip = true;
-                }
-              } catch (e) {
-                console.error("Failed to detect ZIP magic bytes:", e);
-              }
+              console.error("Failed to append chunk to filesystem:", fsErr);
             }
           } else {
-            await set(downloadKey, { isFilesystem: true, fileName: fileName });
-            if (type === 'book' || type === 'pdf') {
-              try {
-                const readRes = await Filesystem.readFile({ path: fileName, directory: Directory.Data });
-                const base64Data = readRes.data.substring(0, 50);
-                const decoded = atob(base64Data);
-                if (decoded.startsWith('PK')) isZip = true;
-              } catch (e) { }
+            chunks.push(value);
+          }
+          loaded += value.length;
+
+          const currentPercent = total ? (loaded / total) * 100 : 0;
+
+          updateActiveDownload(downloadKey, {
+              progress: currentPercent,
+              loaded,
+              total,
+              title,
+              type,
+              courseTitle,
+              chapterName,
+              courseId,
+              itemId,
+              url,
+              status: 'downloading'
+          });
+
+          if (Math.floor(currentPercent) - lastPercentNotified >= 5) {
+            lastPercentNotified = Math.floor(currentPercent);
+            await notifyProgress(notifId, title, currentPercent);
+          }
+        }
+
+        if (isCapacitor && fileUri && pendingBuffer.length > 0) {
+          try {
+            const base64Data = arrayBufferToBase64(pendingBuffer);
+            await Filesystem.appendFile({
+              path: fileName,
+              data: base64Data,
+              directory: Directory.Data
+            });
+          } catch (fsErr) {
+            console.error("Failed to append final chunk to filesystem:", fsErr);
+          }
+        }
+
+        let finalSize = loaded;
+        let isZip = false;
+        if (!isCapacitor) {
+          const contentType = response.headers.get('content-type') || (type === 'pdf' ? 'application/pdf' : 'video/mp4');
+          const finalBlob = new Blob(chunks, { type: contentType });
+
+          await set(downloadKey, finalBlob);
+          finalSize = finalBlob.size;
+
+          if (type === 'book' || type === 'pdf') {
+            try {
+              const magicBytes = await finalBlob.slice(0, 4).text();
+              if (magicBytes.startsWith('PK')) {
+                isZip = true;
+              }
+            } catch (e) {
+              console.error("Failed to detect ZIP magic bytes:", e);
             }
           }
-
-          const meta = {
-            key: downloadKey, courseId, itemId, title, type, courseType, courseTitle, chapterName, size: finalSize, timestamp: new Date().getTime(), isZip
-          };
-          await set(`${downloadKey}_meta`, meta);
-
-          await del(partialKey);
-          await del(`${partialKey}_meta`);
-          delete chunksRef.current[downloadKey];
-
-          setCompletedDownloads(prev => [meta, ...prev]);
-          await notifyComplete(notifId, title);
+        } else {
+          await set(downloadKey, { isFilesystem: true, fileName: fileName });
+          if (type === 'book' || type === 'pdf') {
+            try {
+              const readRes = await Filesystem.readFile({ path: fileName, directory: Directory.Data });
+              const base64Data = readRes.data.substring(0, 50);
+              const decoded = atob(base64Data);
+              if (decoded.startsWith('PK')) isZip = true;
+            } catch (e) { }
+          }
         }
+
+        const meta = {
+          key: downloadKey, courseId, itemId, title, type, courseType, courseTitle, chapterName, size: finalSize, timestamp: new Date().getTime(), isZip
+        };
+        await set(`${downloadKey}_meta`, meta);
+
+        await del(partialKey);
+        await del(`${partialKey}_meta`);
+        delete chunksRef.current[downloadKey];
+
+        setCompletedDownloads(prev => [meta, ...prev.filter(d => d.key !== downloadKey)]);
+        await notifyComplete(notifId, title);
       }
 
     } catch (error) {
@@ -856,29 +915,39 @@ export const DownloadProvider = ({ children }) => {
       if (!isPaused && prev && prev.status !== 'paused') {
         updateActiveDownload(downloadKey, null, true);
       }
+      if (processQueueRef.current) processQueueRef.current();
     }
   };
 
   const pauseDownload = async (type, courseId, itemId) => {
     const downloadKey = `naino_offline_${type}_${courseId}_${itemId}`;
+    if (queueRef.current) {
+      queueRef.current = queueRef.current.filter(k => k !== downloadKey);
+    }
+    
+    if (isCapacitor) {
+      NativeBridge.pauseDownload(type, courseId, itemId);
+      if (activeDownloadsRef.current[downloadKey]) {
+        updateActiveDownload(downloadKey, { status: 'paused' });
+        processQueue();
+      }
+      return;
+    }
+
     const notifId = getNotificationId(downloadKey);
     await notifyCancelOrError(notifId);
 
-    // Mark as paused synchronously to prevent deletion in finally block
     pausedKeysRef.current[downloadKey] = true;
 
-    // 1. Mark as paused in state FIRST
     if (activeDownloadsRef.current[downloadKey]) {
       updateActiveDownload(downloadKey, { status: 'paused' });
     }
 
-    // 2. Abort the active fetch
     if (abortControllers.current[downloadKey]) {
       abortControllers.current[downloadKey].abort();
       delete abortControllers.current[downloadKey];
     }
 
-    // 3. Save current progress to IDB
     const state = activeDownloadsRef.current[downloadKey];
     if (state) {
       await savePartialProgress(
@@ -898,6 +967,7 @@ export const DownloadProvider = ({ children }) => {
       );
       delete chunksRef.current[downloadKey];
     }
+    processQueue();
   };
 
   const resumeDownload = (type, courseId, itemId) => {
@@ -910,6 +980,17 @@ export const DownloadProvider = ({ children }) => {
 
   const cancelDownload = async (type, courseId, itemId) => {
     const downloadKey = `naino_offline_${type}_${courseId}_${itemId}`;
+    if (queueRef.current) {
+      queueRef.current = queueRef.current.filter(k => k !== downloadKey);
+    }
+    
+    if (isCapacitor) {
+      NativeBridge.cancelDownload(type, courseId, itemId);
+      updateActiveDownload(downloadKey, null, true);
+      processQueue();
+      return;
+    }
+
     const partialKey = `naino_offline_partial_${downloadKey}`;
     const notifId = getNotificationId(downloadKey);
     await notifyCancelOrError(notifId);
@@ -924,9 +1005,13 @@ export const DownloadProvider = ({ children }) => {
     await del(`${partialKey}_meta`);
 
     updateActiveDownload(downloadKey, null, true);
+    processQueue();
   };
 
   const getOfflineFileUrl = async (type, courseId, itemId) => {
+    if (isCapacitor) {
+       return NativeBridge.getLocalVideoPath(courseId, itemId, type);
+    }
     try {
       const downloadKey = `naino_offline_${type}_${courseId}_${itemId}`;
       const data = await get(downloadKey);
@@ -967,6 +1052,16 @@ export const DownloadProvider = ({ children }) => {
 
   const deleteDownload = async (key) => {
     try {
+      if (isCapacitor) {
+        const meta = completedDownloads.find(d => d.key === key);
+        if (meta) {
+           NativeBridge.deleteOfflineFile(meta.type, meta.courseId, meta.itemId);
+        }
+        await del(key);
+        await del(`${key}_meta`);
+        setCompletedDownloads(prev => prev.filter(d => d.key !== key));
+        return;
+      }
       const data = await get(key);
       if (isCapacitor && data && data.isFilesystem) {
         await Filesystem.deleteFile({
@@ -983,13 +1078,17 @@ export const DownloadProvider = ({ children }) => {
   };
 
   const isDownloaded = (type, courseId, itemId) => {
+    if (isCapacitor) {
+       return NativeBridge.isDownloaded(courseId, itemId, type, "");
+    }
     const key = `naino_offline_${type}_${courseId}_${itemId}`;
     return completedDownloads.some(d => d.key === key);
   };
 
   const isDownloading = (type, courseId, itemId) => {
     const key = `naino_offline_${type}_${courseId}_${itemId}`;
-    return !!activeDownloadsRef.current[key] && activeDownloadsRef.current[key].status === 'downloading';
+    const dl = activeDownloadsRef.current[key];
+    return !!dl && (dl.status === 'downloading' || dl.status === 'queued');
   };
 
   return (
@@ -1024,4 +1123,16 @@ export const useDownloadProgress = (downloadKey) => {
   }, [downloadKey, subscribeToDownload]);
 
   return progressData;
+};
+
+export const DownloadProgressText = ({ downloadKey }) => {
+  const progressData = useDownloadProgress(downloadKey);
+  if (!progressData) return <>0%</>;
+  if (progressData.status === 'queued') {
+    return <>QUEUED</>;
+  }
+  if (progressData.status === 'paused') {
+    return <>PAUSED</>;
+  }
+  return <>{Math.round(progressData.progress || 0)}%</>;
 };

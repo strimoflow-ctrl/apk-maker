@@ -75,7 +75,7 @@ const PlayerScreen = () => {
 
   if (loading) {
     return (
-      <div className="h-[100dvh] bg-black flex items-center justify-center">
+      <div className="flex-1 w-full bg-black flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#FFD700]"></div>
       </div>
     );
@@ -83,7 +83,7 @@ const PlayerScreen = () => {
 
   if (error || !lectureData) {
     return (
-      <div className="h-[100dvh] bg-black flex flex-col items-center justify-center p-6 text-center text-white">
+      <div className="flex-1 w-full bg-black flex flex-col items-center justify-center p-6 text-center text-white">
         <p className="text-red-500 mb-4">{error || 'Video could not be loaded.'}</p>
         <button 
           onClick={() => navigate(-1)}
@@ -96,7 +96,7 @@ const PlayerScreen = () => {
   }
 
   return (
-    <div className="h-[100dvh] bg-black text-white flex flex-col overflow-hidden relative">
+    <div className="flex-1 w-full bg-black text-white flex flex-col overflow-hidden relative">
       <div className="absolute top-0 left-0 right-0 z-50 p-4 bg-gradient-to-b from-black/80 to-transparent flex items-center justify-between pointer-events-none">
         <button 
           onClick={() => navigate(-1)} 

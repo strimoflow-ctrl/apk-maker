@@ -28,8 +28,43 @@ const PdfZoneScreen = () => {
 
   if (loading) {
     return (
-      <div className="w-full min-h-screen flex items-center justify-center bg-[#050505]">
-        <div className="w-12 h-12 border-4 border-[#FFD700] border-t-transparent rounded-full animate-spin" />
+      <div className="min-h-screen bg-[#050505] text-white p-6 md:p-12 pb-12">
+        <div className="max-w-7xl mx-auto animate-pulse">
+          <header className="mb-10">
+            <div className="w-48 h-8 bg-white/10 rounded relative overflow-hidden mb-2">
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skeleton-shimmer" />
+            </div>
+            <div className="w-64 h-4 bg-white/5 rounded relative overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skeleton-shimmer" />
+            </div>
+          </header>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-8">
+            {Array.from({ length: 6 }).map((_, idx) => (
+              <div 
+                key={idx}
+                className="bg-[#111] border border-white/5 rounded-2xl p-5 flex flex-col justify-between h-48 relative overflow-hidden"
+              >
+                <div>
+                  <div className="w-3/4 h-6 bg-white/10 rounded mb-3 relative overflow-hidden">
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skeleton-shimmer" />
+                  </div>
+                  <div className="w-1/4 h-4 bg-white/5 rounded relative overflow-hidden">
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skeleton-shimmer" />
+                  </div>
+                </div>
+                <div className="flex justify-between items-center mt-auto">
+                  <div className="w-20 h-3 bg-white/5 rounded relative overflow-hidden">
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skeleton-shimmer" />
+                  </div>
+                  <div className="w-8 h-8 bg-white/5 rounded-full relative overflow-hidden">
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skeleton-shimmer" />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     );
   }

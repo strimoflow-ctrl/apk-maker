@@ -1,12 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, FileText, ChevronRight, Book, Download, Loader2, Check } from 'lucide-react';
-import { useDownload, useDownloadProgress } from '../context/DownloadContext';
-
-const DownloadProgressText = ({ downloadKey }) => {
-  const progressData = useDownloadProgress(downloadKey);
-  return <>{Math.round(progressData?.progress || 0)}%</>;
-};
+import { ArrowLeft, FileText, ChevronRight, Book, Download, Loader2, Check, X } from 'lucide-react';
+import { useDownload, useDownloadProgress, DownloadProgressText } from '../context/DownloadContext';
 import NotificationModal from '../components/NotificationModal';
 import { fetchWithCache } from '../utils/api';
 import { useAlert } from '../context/AlertContext';
@@ -14,7 +9,7 @@ import { useAlert } from '../context/AlertContext';
 const PdfDetailScreen = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { downloadFile, isDownloaded, getOfflineFileUrl, isDownloading } = useDownload();
+  const { downloadFile, isDownloaded, getOfflineFileUrl, isDownloading, cancelDownload } = useDownload();
   const { showAlert } = useAlert();
   const [institution, setInstitution] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -38,8 +33,48 @@ const PdfDetailScreen = () => {
 
   if (loading) {
     return (
-      <div className="w-full min-h-screen flex items-center justify-center bg-[#050505]">
-        <div className="w-12 h-12 border-4 border-[#FFD700] border-t-transparent rounded-full animate-spin" />
+      <div className="min-h-screen bg-[#050505] text-white p-6 md:p-12 pb-12">
+        <div className="max-w-4xl mx-auto animate-pulse">
+          <header className="mb-10">
+            <div className="w-56 h-8 bg-white/10 rounded relative overflow-hidden mb-2">
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skeleton-shimmer" />
+            </div>
+            <div className="w-40 h-4 bg-white/5 rounded relative overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skeleton-shimmer" />
+            </div>
+          </header>
+
+          <div className="space-y-8">
+            {Array.from({ length: 2 }).map((_, sIdx) => (
+              <div key={sIdx} className="bg-[#111] border border-white/5 rounded-2xl p-6 shadow-lg">
+                <div className="w-48 h-6 bg-white/10 rounded mb-4 relative overflow-hidden pb-2">
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skeleton-shimmer" />
+                </div>
+                
+                <div className="space-y-2">
+                  {Array.from({ length: 3 }).map((_, cIdx) => (
+                    <div 
+                      key={cIdx}
+                      className="flex items-center justify-between p-3 bg-white/5 rounded-xl border border-transparent"
+                    >
+                      <div className="flex items-center gap-3 w-full">
+                        <div className="w-8 h-8 bg-black/40 rounded-lg relative overflow-hidden shrink-0">
+                          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skeleton-shimmer" />
+                        </div>
+                        <div className="w-2/3 h-4 bg-white/5 rounded relative overflow-hidden">
+                          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skeleton-shimmer" />
+                        </div>
+                      </div>
+                      <div className="w-12 h-4 bg-white/5 rounded relative overflow-hidden shrink-0">
+                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skeleton-shimmer" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     );
   }
@@ -139,7 +174,19 @@ const PdfDetailScreen = () => {
                           ) : (
                             <>
                               {isDownloading('pdf', institution.id, `${sIdx}_${cIdx}`) ? (
-                                <span className="text-[10px] text-[#FFD700] uppercase font-bold tracking-widest flex items-center gap-1"><Loader2 size={12} className="animate-spin"/> <DownloadProgressText downloadKey={`naino_offline_pdf_${institution.id}_${sIdx}_${cIdx}`} /></span>
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-[10px] text-[#FFD700] uppercase font-bold tracking-widest flex items-center gap-1"><Loader2 size={12} className="animate-spin"/> <DownloadProgressText downloadKey={`naino_offline_pdf_${institution.id}_${sIdx}_${cIdx}`} /></span>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      cancelDownload('pdf', institution.id, `${sIdx}_${cIdx}`);
+                                    }}
+                                    className="p-1 rounded border border-red-500/30 bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white transition-colors flex items-center justify-center"
+                                    title="Cancel Download"
+                                  >
+                                    <X size={12} />
+                                  </button>
+                                </div>
                               ) : isDownloaded('pdf', institution.id, `${sIdx}_${cIdx}`) ? (
                                 <span className="text-[10px] text-[#00E600] uppercase font-bold tracking-widest flex items-center gap-1"><Check size={12}/> Saved</span>
                               ) : (

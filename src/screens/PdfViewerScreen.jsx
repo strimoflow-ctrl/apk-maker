@@ -5,11 +5,15 @@ import { Document, Page, pdfjs } from 'react-pdf';
 import { ArrowLeft, Maximize, Smartphone, Loader2, X, ZoomIn, Bot } from 'lucide-react';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 import SaveButton from '../components/SaveButton';
+import NativeBridge from '../utils/NativeBridge';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
+import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 
-// Configure worker for react-pdf
-pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+const isCapacitor = NativeBridge.isNative();
+
+// Configure worker for react-pdf to work completely offline
+pdfjs.GlobalWorkerOptions.workerSrc = pdfjsWorker;
 
 const PdfViewerScreen = () => {
   const location = useLocation();
@@ -20,10 +24,13 @@ const PdfViewerScreen = () => {
   const [isLandscape, setIsLandscape] = useState(false);
   const [selectedZoomPage, setSelectedZoomPage] = useState(null);
   const [showAiOptions, setShowAiOptions] = useState(false);
+  const [scrollTop, setScrollTop] = useState(0);
+  const [aspectRatio, setAspectRatio] = useState(1.414);
 
   // The state can pass the file directly (URL or Blob URL)
   const file = location.state?.file;
   const title = location.state?.title || 'Document';
+  const [pdfData, setPdfData] = useState(null);
   const [fileSizeMB, setFileSizeMB] = useState(0);
 
   useEffect(() => {
@@ -36,18 +43,37 @@ const PdfViewerScreen = () => {
     const checkFileSize = async () => {
       try {
         if (typeof file === 'string') {
-          if (file.startsWith('blob:')) {
-            const res = await fetch(file);
-            const blob = await res.blob();
-            setFileSizeMB(blob.size / (1024 * 1024));
-          } else {
-            const res = await fetch(file, { method: 'HEAD' });
-            const size = parseInt(res.headers.get('content-length') || 0, 10);
-            setFileSizeMB(size / (1024 * 1024));
+          // If on Capacitor and file is a local path, read it natively as a Base64 string to bypass CapacitorHttp/CORS restrictions.
+          if (isCapacitor && (file.startsWith('http://localhost/_capacitor_file_') || file.startsWith('file://') || file.startsWith('content://') || file.startsWith('/'))) {
+            const base64 = NativeBridge.readAbsoluteFileAsBase64(file);
+            if (base64) {
+              const byteCharacters = atob(base64);
+              const byteNumbers = new Array(byteCharacters.length);
+              for (let i = 0; i < byteCharacters.length; i++) {
+                byteNumbers[i] = byteCharacters.charCodeAt(i);
+              }
+              const byteArray = new Uint8Array(byteNumbers);
+              const blob = new Blob([byteArray], { type: 'application/pdf' });
+              setFileSizeMB(blob.size / (1024 * 1024));
+              setPdfData(blob);
+              return;
+            }
           }
+
+          // Fetch the file completely as a blob. This bypasses pdf.js HEAD/Range request issues on Capacitor schemes.
+          const res = await fetch(file);
+          if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+          const blob = await res.blob();
+          setFileSizeMB(blob.size / (1024 * 1024));
+          setPdfData(blob);
+        } else if (file instanceof Blob) {
+          setFileSizeMB(file.size / (1024 * 1024));
+          setPdfData(file);
         }
       } catch (e) {
-        console.warn("Could not determine file size:", e);
+        console.warn("Could not fetch file directly, falling back to URL:", e);
+        // Fallback to URL if blob fetch fails
+        setPdfData(file);
       }
     };
 
@@ -80,7 +106,18 @@ const PdfViewerScreen = () => {
     setPageNumber(1);
   }
 
-  const usePagination = fileSizeMB > 5 || (numPages && numPages > 35);
+  const handlePageLoad = (page) => {
+    if (page && page.originalWidth && page.originalHeight) {
+      setAspectRatio(page.originalHeight / page.originalWidth);
+    }
+  };
+
+  const calculatedPageWidth = Math.min(containerWidth - 16, 1200);
+  const pageHeight = calculatedPageWidth * aspectRatio + 24;
+
+  const handleScroll = (e) => {
+    setScrollTop(e.target.scrollTop);
+  };
 
   const toggleOrientation = async () => {
     try {
@@ -159,106 +196,83 @@ const PdfViewerScreen = () => {
         </button>
       </div>
 
-      {/* Document Title Floating (Bottom Left - if not pagination) */}
-      {!usePagination && (
-        <div className="absolute bottom-4 left-4 z-[60] max-w-[60%] bg-black/60 backdrop-blur-md border border-white/10 px-4 py-2 rounded-full shadow-xl pointer-events-none">
-          <p className="text-xs font-bold text-[#FFD700] truncate">{title}</p>
-        </div>
-      )}
-
-      {/* Main PDF Scrollable Container */}
-      <div className="flex-1 w-full h-full overflow-auto custom-scrollbar">
-        <div className="py-20 flex justify-center min-h-full">
-          <Document
-            file={file}
-            onLoadSuccess={onDocumentLoadSuccess}
-            loading={
-              <div className="flex flex-col items-center justify-center h-[70vh]">
-                <Loader2 className="animate-spin text-[#FFD700] mb-4" size={40} />
-                <p className="text-gray-400 font-bold uppercase tracking-widest text-sm">Rendering PDF...</p>
-              </div>
-            }
-            error={
-              <div className="text-red-500 text-center mt-10 h-[70vh] flex items-center justify-center">
-                Failed to load PDF. Please try again.
-              </div>
-            }
-          >
-            {numPages && (
-              usePagination ? (
-                <div
-                  className="shadow-[0_0_30px_rgba(0,0,0,0.8)] relative cursor-zoom-in group"
-                  onClick={() => setSelectedZoomPage(pageNumber)}
-                >
-                  <Page
-                    pageNumber={pageNumber}
-                    scale={1.0}
-                    width={Math.min(containerWidth - 16, 1200)}
-                    renderTextLayer={true}
-                    renderAnnotationLayer={true}
-                    className="bg-white overflow-hidden"
-                  />
-                  {/* Tap to Zoom Hint */}
-                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all pointer-events-none">
-                    <div className="bg-black/70 backdrop-blur-md text-white px-4 py-2 rounded-full flex items-center gap-2 font-bold text-sm">
-                      <ZoomIn size={16} className="text-[#FFD700]" /> Tap to Zoom
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="flex flex-col gap-6">
-                  {Array.from(new Array(numPages), (el, index) => (
-                    <div
-                      key={`page_${index + 1}`}
-                      className="shadow-[0_0_30px_rgba(0,0,0,0.8)] cursor-zoom-in group relative"
-                      onClick={() => setSelectedZoomPage(index + 1)}
-                    >
-                      <Page
-                        pageNumber={index + 1}
-                        scale={1.0}
-                        width={Math.min(containerWidth - 16, 1200)}
-                        renderTextLayer={true}
-                        renderAnnotationLayer={true}
-                        className="bg-white overflow-hidden"
-                      />
-                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all pointer-events-none">
-                        <div className="bg-black/70 backdrop-blur-md text-white px-4 py-2 rounded-full flex items-center gap-2 font-bold text-sm">
-                          <ZoomIn size={16} className="text-[#FFD700]" /> Tap to Zoom
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )
-            )}
-          </Document>
-        </div>
+      {/* Document Title Floating (Bottom Left) */}
+      <div className="absolute bottom-4 left-4 z-[60] max-w-[60%] bg-black/60 backdrop-blur-md border border-white/10 px-4 py-2 rounded-full shadow-xl pointer-events-none">
+        <p className="text-xs font-bold text-[#FFD700] truncate">{title}</p>
       </div>
 
-      {/* Pagination Controls */}
-      {numPages && usePagination && (
-        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[60] bg-black/80 backdrop-blur-xl border border-white/10 px-6 py-3 rounded-full flex items-center justify-center gap-6 shadow-2xl">
-          <button
-            disabled={pageNumber <= 1}
-            onClick={() => setPageNumber(prev => prev - 1)}
-            className="px-4 py-1.5 bg-[#1a1a1a] border border-[#FFD700]/30 hover:bg-[#FFD700]/20 disabled:opacity-30 disabled:hover:bg-[#1a1a1a] rounded-full text-[#FFD700] font-bold uppercase text-xs transition-colors"
-          >
-            Previous
-          </button>
+      {/* Main PDF Scrollable Container */}
+      <div 
+        onScroll={handleScroll}
+        className="flex-1 w-full h-full overflow-auto custom-scrollbar"
+      >
+        <div className="py-20 flex justify-center min-h-full">
+          {pdfData ? (
+            <Document
+              file={pdfData}
+              onLoadSuccess={onDocumentLoadSuccess}
+              loading={
+                <div className="flex flex-col items-center justify-center h-[70vh]">
+                  <Loader2 className="animate-spin text-[#FFD700] mb-4" size={40} />
+                  <p className="text-gray-400 font-bold uppercase tracking-widest text-sm">Rendering PDF...</p>
+                </div>
+              }
+              error={
+                <div className="text-red-500 text-center mt-10 h-[70vh] flex items-center justify-center">
+                  Failed to load PDF. Please try again.
+                </div>
+              }
+            >
+              {numPages && (
+                <div className="flex flex-col gap-6">
+                  {Array.from(new Array(numPages), (el, index) => {
+                    const pageNum = index + 1;
+                    const pageTop = index * pageHeight;
+                    const isVisible = pageTop + pageHeight >= scrollTop - pageHeight * 2 && pageTop <= scrollTop + window.innerHeight + pageHeight * 3;
 
-          <span className="text-gray-300 font-mono text-sm whitespace-nowrap">
-            <span className="text-white font-bold">{pageNumber}</span> / {numPages}
-          </span>
-
-          <button
-            disabled={pageNumber >= numPages}
-            onClick={() => setPageNumber(prev => prev + 1)}
-            className="px-4 py-1.5 bg-[#FFD700] hover:bg-[#FFD700]/80 disabled:opacity-30 disabled:hover:bg-[#FFD700] text-black rounded-full font-bold uppercase text-xs transition-colors"
-          >
-            Next
-          </button>
+                    return (
+                      <div
+                        key={`page_${pageNum}`}
+                        style={{ height: pageHeight, width: calculatedPageWidth }}
+                        className="shadow-[0_0_30px_rgba(0,0,0,0.8)] bg-white overflow-hidden relative cursor-zoom-in group"
+                        onClick={() => setSelectedZoomPage(pageNum)}
+                      >
+                        {isVisible ? (
+                          <>
+                            <Page
+                              pageNumber={pageNum}
+                              scale={1.0}
+                              width={calculatedPageWidth}
+                              onLoadSuccess={index === 0 ? handlePageLoad : undefined}
+                              renderTextLayer={true}
+                              renderAnnotationLayer={true}
+                              className="bg-white overflow-hidden"
+                            />
+                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all pointer-events-none">
+                              <div className="bg-black/70 backdrop-blur-md text-white px-4 py-2 rounded-full flex items-center gap-2 font-bold text-sm">
+                                <ZoomIn size={16} className="text-[#FFD700]" /> Tap to Zoom
+                              </div>
+                            </div>
+                          </>
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center bg-[#111] border border-white/5">
+                            <Loader2 className="animate-spin text-[#FFD700]" size={24} />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </Document>
+          ) : (
+            <div className="flex flex-col items-center justify-center h-[70vh]">
+              <Loader2 className="animate-spin text-[#FFD700] mb-4" size={40} />
+              <p className="text-gray-400 font-bold uppercase tracking-widest text-sm">Downloading PDF...</p>
+            </div>
+          )}
         </div>
-      )}
+      </div>
 
       {/* Zoom Modal Overlay */}
       {selectedZoomPage && createPortal(
@@ -294,16 +308,18 @@ const PdfViewerScreen = () => {
                 contentStyle={{ width: "100%", height: "100%", justifyContent: "center", display: "flex", alignItems: "center" }}
               >
                 <div className="shadow-[0_0_50px_rgba(0,0,0,1)] bg-white">
-                  <Document file={file}>
-                    <Page
-                      pageNumber={selectedZoomPage}
-                      scale={1.5} // Render higher resolution for zooming
-                      width={Math.min(containerWidth, 1000)}
-                      renderTextLayer={true}
-                      renderAnnotationLayer={true}
-                      className="bg-white"
-                    />
-                  </Document>
+                  {pdfData && (
+                    <Document file={pdfData}>
+                      <Page
+                        pageNumber={selectedZoomPage}
+                        scale={1.5} // Render higher resolution for zooming
+                        width={Math.min(containerWidth, 1000)}
+                        renderTextLayer={true}
+                        renderAnnotationLayer={true}
+                        className="bg-white"
+                      />
+                    </Document>
+                  )}
                 </div>
               </TransformComponent>
             </TransformWrapper>
