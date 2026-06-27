@@ -442,7 +442,7 @@ const CoachingDetailScreen = () => {
                     <div className="absolute bottom-3 left-3 bg-[#FFD700] text-black font-extrabold text-[10px] font-mono uppercase px-2.5 py-0.5 rounded-full shadow">
                       Batch #{idx + 1}
                     </div>
-                    {batch.isPremium && (
+                    {isItemLocked(batch) && (
                       <div className="absolute top-3 right-3 bg-black/95 p-1.5 rounded-full border border-[#FFD700] shadow-md z-10 animate-bounce-short">
                         <Lock size={14} className="text-[#FFD700]" />
                       </div>
@@ -461,10 +461,17 @@ const CoachingDetailScreen = () => {
                       )}
                     </div>
 
-                    <div className="w-full bg-white/10 group-hover:bg-[#FFD700] text-white group-hover:text-black font-bold py-2.5 rounded-xl text-xs uppercase tracking-wider transition-all duration-300 flex items-center justify-center gap-2">
-                      <span>Explore Chapters</span>
-                      <span>➔</span>
-                    </div>
+                    {isItemLocked(batch) ? (
+                      <div className="w-full bg-[#1a1a1a] group-hover:bg-[#222] text-[#FFD700] border border-[#FFD700]/30 font-bold py-2.5 rounded-xl text-xs uppercase tracking-wider transition-all duration-300 flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(255,215,0,0.1)]">
+                        <Lock size={14} className="text-[#FFD700]" />
+                        <span>PREMIUM LOCKED</span>
+                      </div>
+                    ) : (
+                      <div className="w-full bg-white/10 group-hover:bg-[#FFD700] text-white group-hover:text-black font-bold py-2.5 rounded-xl text-xs uppercase tracking-wider transition-all duration-300 flex items-center justify-center gap-2">
+                        <span>Explore Chapters</span>
+                        <span>➔</span>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}

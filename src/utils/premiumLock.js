@@ -3,5 +3,5 @@ export const isItemLocked = (item) => {
   
   if (isPremiumUser) return false;
 
-  return item?.isPremium === true;
+  return Boolean(item?.isPremium) && item?.isPremium !== 'false' && item?.isPremium !== false && item?.isPremium !== 0 && item?.isPremium !== '';
 };
