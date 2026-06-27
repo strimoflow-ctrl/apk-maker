@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Virtuoso } from 'react-virtuoso';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Home, PlayCircle, FileText, Download, CheckCircle, Loader2, X } from 'lucide-react';
+import { ArrowLeft, Home, PlayCircle, FileText, Download, CheckCircle, Loader2, X, Lock } from 'lucide-react';
 import { fetchWithCache } from '../utils/api';
 import VideoPlayer from '../components/VideoPlayer';
 import { useDownload, useDownloadProgress, DownloadProgressText } from '../context/DownloadContext';
 import SaveButton from '../components/SaveButton';
+import PremiumModal from '../components/PremiumModal';
+import { isItemLocked } from '../utils/premiumLock';
 
 const CoachingDetailScreen = () => {
   const { coachingId } = useParams();
@@ -16,10 +18,12 @@ const CoachingDetailScreen = () => {
   const [coachingData, setCoachingData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [showPremiumModal, setShowPremiumModal] = useState(false);
 
   // Selections
   const [activeBatchIndex, setActiveBatchIndex] = useState(0);
   const [activeSubjectIndex, setActiveSubjectIndex] = useState(0);
+  const [showBatchGrid, setShowBatchGrid] = useState(!location.state?.activeBatchName && !location.state?.autoPlayLecture);
   
   // Dynamic Batch Data State
   const [activeBatchData, setActiveBatchData] = useState(null);
@@ -109,8 +113,16 @@ const CoachingDetailScreen = () => {
           if (location.state?.activeBatchName && data && data.batches) {
             const idx = data.batches.findIndex(b => b.batchName === location.state.activeBatchName);
             setActiveBatchIndex(idx !== -1 ? idx : 0);
+            setShowBatchGrid(false);
+          } else if (location.state?.autoPlayLecture) {
+            setActiveBatchIndex(0);
+            setShowBatchGrid(false);
+          } else if (data && data.batches && data.batches.length > 0) {
+            setActiveBatchIndex(0);
+            setShowBatchGrid(true);
           } else {
             setActiveBatchIndex(0);
+            setShowBatchGrid(false);
           }
           setActiveSubjectIndex(0);
         } catch (err) {
@@ -365,60 +377,6 @@ const CoachingDetailScreen = () => {
   if (!selectedChapter) {
     return (
       <div className="flex-1 w-full overflow-y-auto bg-[#050505] text-white flex flex-col font-inter pb-12 page-transition pt-[calc(var(--safe-area-top)+1rem)]">
-        <header className="p-4 md:p-6 pb-2 border-b border-white/10 sticky top-0 bg-[#050505]/90 backdrop-blur-md z-30">
-          <div className="flex items-start justify-between gap-4 mb-4">
-            <div className="flex items-center gap-4 flex-1 min-w-0">
-               <button onClick={() => navigate(-1)} className="hover:text-[#FFD700] transition-colors shrink-0">
-                 <ArrowLeft size={24} />
-               </button>
-               <h1 className="text-[#FFD700] font-oswald text-2xl font-bold uppercase tracking-wide truncate">
-                 {coachingData ? coachingData.coachingName || coaching?.title : 'Loading...'}
-               </h1>
-            </div>
-            {coachingData && (
-              <div className="shrink-0">
-                <SaveButton 
-                  shake={true}
-                  key={activeBatch ? `${coachingId}_batch_${activeBatch.batchName}` : coachingId}
-                  item={activeBatch ? {
-                    id: `${coachingId}_batch_${activeBatch.batchName}`,
-                    type: 'coaching',
-                    courseId: coachingId,
-                    title: activeBatch.batchName,
-                    coachingName: coachingData.coachingName || coaching?.title,
-                    activeBatchName: activeBatch.batchName,
-                    image: coaching?.image
-                  } : {
-                    id: coachingId,
-                    type: 'coaching',
-                    courseId: coachingId,
-                    coachingName: coachingData.coachingName || coaching?.title,
-                    image: coaching?.image
-                  }}
-                />
-              </div>
-            )}
-          </div>
-
-          {/* Batch Selector Tabs */}
-          {coachingData?.batches && (
-            <div className="flex gap-2 overflow-x-auto no-scrollbar pb-3">
-              {coachingData.batches.map((batch, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => {
-                    setActiveBatchIndex(idx);
-                    setActiveSubjectIndex(0);
-                  }}
-                  className={`shrink-0 px-4 py-2 rounded-full text-sm font-bold transition-all border ${activeBatchIndex === idx ? 'bg-[#FFD700] text-black border-[#FFD700]' : 'bg-transparent text-gray-400 border-white/20 hover:border-white/50'}`}
-                >
-                  {batch.batchIcon && <span className="mr-2">{batch.batchIcon}</span>}
-                  {batch.batchName}
-                </button>
-              ))}
-            </div>
-          )}
-        </header>
 
         {loading ? (
           <div className="p-4 md:p-6 max-w-5xl mx-auto w-full space-y-4 animate-pulse">
@@ -443,8 +401,108 @@ const CoachingDetailScreen = () => {
           </div>
         ) : error ? (
           <div className="text-red-500 text-center p-12 flex-1">{error}</div>
+        ) : showBatchGrid && coachingData?.batches ? (
+          <div className="p-4 md:p-8 max-w-6xl mx-auto w-full page-transition">
+            <div className="mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/10 pb-6">
+              <div>
+                <h2 className="text-2xl sm:text-3xl font-oswald font-extrabold text-[#FFD700] uppercase tracking-wide flex items-center gap-3">
+                  <span>🏛️</span> Choose Your Batch
+                </h2>
+                <p className="text-gray-400 font-inter text-sm mt-1">Select a batch below to access all subjects & lectures</p>
+              </div>
+              <div className="px-3 py-1 bg-white/10 text-white font-mono text-xs rounded-full border border-white/10 h-fit">
+                {coachingData.batches.length} Batches Available
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {coachingData.batches.map((batch, idx) => (
+                <div
+                  key={idx}
+                  onClick={() => {
+                    if (isItemLocked(batch)) {
+                      setShowPremiumModal(true);
+                      return;
+                    }
+                    setActiveBatchIndex(idx);
+                    setActiveSubjectIndex(0);
+                    setShowBatchGrid(false);
+                  }}
+                  className="group bg-[#121212] rounded-3xl overflow-hidden border border-white/10 hover:border-[#FFD700] cursor-pointer hover:-translate-y-2 hover:shadow-[0_15px_35px_rgba(255,215,0,0.2)] transition-all duration-300 flex flex-col justify-between relative"
+                >
+                  <div className="relative aspect-video w-full overflow-hidden bg-black/60">
+                    {batch.thumbnail || coaching?.image ? (
+                      <img src={batch.thumbnail || coaching?.image} alt={batch.batchName} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-[#FFD700] font-oswald text-4xl font-extrabold">
+                        {batch.batchName?.charAt(0)}
+                      </div>
+                    )}
+                    <div className="absolute inset-0 bg-gradient-to-t from-[#121212] via-transparent to-transparent opacity-90" />
+                    <div className="absolute bottom-3 left-3 bg-[#FFD700] text-black font-extrabold text-[10px] font-mono uppercase px-2.5 py-0.5 rounded-full shadow">
+                      Batch #{idx + 1}
+                    </div>
+                    {batch.isPremium && (
+                      <div className="absolute top-3 right-3 bg-black/95 p-1.5 rounded-full border border-[#FFD700] shadow-md z-10 animate-bounce-short">
+                        <Lock size={14} className="text-[#FFD700]" />
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="p-5 flex flex-col justify-between flex-1 gap-4">
+                    <div>
+                      <h3 className="text-white font-oswald font-bold text-lg sm:text-xl uppercase tracking-wide group-hover:text-[#FFD700] transition-colors">
+                        {batch.batchName}
+                      </h3>
+                      {batch.batchDescription && (
+                        <p className="text-gray-400 text-xs mt-1.5 line-clamp-2 leading-relaxed">
+                          {batch.batchDescription}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="w-full bg-white/10 group-hover:bg-[#FFD700] text-white group-hover:text-black font-bold py-2.5 rounded-xl text-xs uppercase tracking-wider transition-all duration-300 flex items-center justify-center gap-2">
+                      <span>Explore Chapters</span>
+                      <span>➔</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
         ) : (
           <div className="p-4 md:p-6 max-w-5xl mx-auto w-full">
+            {/* Compact Top Bar */}
+            <div className="flex items-center justify-between gap-2 mb-4">
+              {coachingData?.batches?.length > 1 && (
+                <button
+                  onClick={() => setShowBatchGrid(true)}
+                  className="px-3 py-1.5 bg-white/5 hover:bg-[#FFD700] hover:text-black text-gray-300 font-bold text-xs rounded-xl border border-white/10 transition-all flex items-center gap-1.5"
+                >
+                  <span>⬅</span> Switch Batch ({activeBatch?.batchName || coachingData.batches[activeBatchIndex]?.batchName})
+                </button>
+              )}
+              <div className="ml-auto shrink-0">
+                <SaveButton
+                  shake={true}
+                  item={activeBatch ? {
+                    id: `${coachingId}_batch_${activeBatch.batchName}`,
+                    type: 'coaching',
+                    courseId: coachingId,
+                    title: activeBatch.batchName,
+                    coachingName: coachingData.coachingName || coaching?.title,
+                    activeBatchName: activeBatch.batchName,
+                    image: coaching?.image
+                  } : {
+                    id: coachingId,
+                    type: 'coaching',
+                    courseId: coachingId,
+                    coachingName: coachingData.coachingName || coaching?.title,
+                    image: coaching?.image
+                  }}
+                />
+              </div>
+            </div>
             {batchLoading ? (
               <div className="space-y-4 animate-pulse">
                 {Array.from({ length: 5 }).map((_, idx) => (
@@ -795,6 +853,7 @@ const CoachingDetailScreen = () => {
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
       `}} />
+      <PremiumModal isOpen={showPremiumModal} onClose={() => setShowPremiumModal(false)} />
     </div>
   );
 };
